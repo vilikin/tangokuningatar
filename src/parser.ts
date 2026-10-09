@@ -18,7 +18,14 @@ export const GAMES = {
   patches: "Patches",
   wend: "Wend",
 } as const;
-// Pinpoint and Crossclimb are deliberately not supported.
+// Pinpoint and Crossclimb are deliberately not supported: they're never parsed
+// as scores. findShamefulGames only spots them so the poster can be shamed.
+export const SHAMEFUL_GAMES = {
+  pinpoint: "Pinpoint",
+  crossclimb: "Crossclimb",
+} as const;
+
+export type ShamefulGameId = keyof typeof SHAMEFUL_GAMES;
 
 export type GameId = keyof typeof GAMES;
 
@@ -53,6 +60,22 @@ const LINK = /\blnkd\.in\//i;
 
 // How far past the header flags are looked for, if no lnkd.in link ends the result first.
 const MAX_LINES_PER_RESULT = 5;
+
+// A shared result rather than a mention: "Pinpoint #512 | 3 guesses", or the lnkd.in link.
+const SHAMEFUL_HEADER = /^(pinpoint|crossclimb)\s*#\s*\d[\d,]*\s*\|/i;
+const SHAMEFUL_LINK = /\blnkd\.in\/(pinpoint|crossclimb)\b/i;
+
+/** Pinpoint or Crossclimb results in the message, each game once, in order of appearance. */
+export function findShamefulGames(text: string): ShamefulGameId[] {
+  const found = new Set<ShamefulGameId>();
+  for (const line of normalize(text).split("\n")) {
+    const match = SHAMEFUL_HEADER.exec(line) ?? SHAMEFUL_LINK.exec(line);
+    if (match) {
+      found.add(match[1]!.toLowerCase() as ShamefulGameId);
+    }
+  }
+  return [...found];
+}
 
 export function parseScores(text: string): Score[] {
   const lines = normalize(text).split("\n");

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatTime, parseScores, type Score } from "../src/parser";
+import { findShamefulGames, formatTime, parseScores, type Score } from "../src/parser";
 
 const score = (overrides: Partial<Score> & Pick<Score, "game" | "puzzleNumber" | "timeSeconds">): Score => ({
   noHints: false,
@@ -121,6 +121,28 @@ describe("things that are not scores", () => {
     ["a time glued to more digits", "Queens #892\n1:000"],
   ])("ignores %s", (_, text) => {
     expect(parseScores(text)).toEqual([]);
+  });
+});
+
+describe("findShamefulGames", () => {
+  it.each([
+    ["a Pinpoint result", "Pinpoint #512 | 3 guesses\n1️⃣  | 1% match\n3️⃣  | 100% match 📌\nlnkd.in/pinpoint.", ["pinpoint"]],
+    ["a Crossclimb result", "Crossclimb #377 | 1:23 🪜\nlnkd.in/crossclimb.", ["crossclimb"]],
+    ["just the header", "pinpoint # 512 | 5 guesses", ["pinpoint"]],
+    ["just the link", "Tänään tällainen 🙈\nlnkd.in/crossclimb.", ["crossclimb"]],
+    ["both, each once", "Crossclimb #377 | 1:23\nlnkd.in/crossclimb.\nPinpoint #512 | 2 guesses\nlnkd.in/pinpoint.\nlnkd.in/crossclimb.", ["crossclimb", "pinpoint"]],
+    ["a Pinpoint result next to a real score", "Queens #892\n1:00 👑\nlnkd.in/queens.\nPinpoint #512 | 3 guesses\nlnkd.in/pinpoint.", ["pinpoint"]],
+  ])("finds %s", (_, text, expected) => {
+    expect(findShamefulGames(text)).toEqual(expected);
+  });
+
+  it.each([
+    ["a mention", "Pinpoint #512 oli helppo"],
+    ["a mention mid-sentence", "Kuka teki Pinpoint #512 | ?"],
+    ["supported games", "Queens #892\n1:00 👑\nlnkd.in/queens."],
+    ["ordinary chat", "Huomenta!"],
+  ])("ignores %s", (_, text) => {
+    expect(findShamefulGames(text)).toEqual([]);
   });
 });
 

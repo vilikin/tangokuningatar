@@ -1,6 +1,6 @@
 # Tangokuningatar
 
-Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are deliberately not supported.
+Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are deliberately not supported: posting one earns a 👎 and some public shaming.
 
 **Current phase:** a Cloudflare Worker that receives Telegram updates through a webhook, verifies them, and parses the scores people post. It reacts to each score with 👍 and, for now, replies with what it parsed. Storage (D1) and leaderboards come later.
 
@@ -11,7 +11,7 @@ Telegram POSTs every update to `https://tangokuningatar.<subdomain>.workers.dev/
 1. Returns 404 for any other path, and 405 for any method other than POST.
 2. Returns 401 and does nothing else unless the `X-Telegram-Bot-Api-Secret-Token` header matches `WEBHOOK_SECRET`. The comparison is constant-time.
 3. For messages from our group (`ALLOWED_CHAT_ID`), logs the update ID, sender, date, text and parsed scores, plus the raw update JSON.
-4. If a message from our group contains one or more scores, reacts to it with 👍 and replies with what was parsed. Other messages get no response.
+4. If a message from our group contains one or more scores, reacts to it with 👍 and replies with what was parsed. If it contains a Pinpoint or Crossclimb result, reacts with 👎 and replies with a shaming line instead. Bots get one reaction per message, so 👎 wins when both appear, and the parsed scores are listed under the shame. Other messages get no response.
 5. Ignores updates from every other chat, including private chats, and logs only a metadata line with no message content. If someone adds the bot to another chat, that line records who did it.
 6. Logs a `chat_migrated` warning with the new chat ID if Telegram upgrades our group to a supergroup. See [When the group becomes a supergroup](#when-the-group-becomes-a-supergroup).
 7. Always answers authenticated requests with 200, even if processing fails. Otherwise Telegram would keep redelivering the same update. The reaction and reply are sent after the 200, so a slow Bot API call can't cause a redelivery.
@@ -40,7 +40,9 @@ Security is layered:
 | `timeSeconds` | `29` (from `0:29`; `h:mm:ss` also works) |
 | `noHints`, `noRedraws` | `true` if the text says so, otherwise `false` |
 
-It tolerates chatter around the result, several results in one message, photo captions, CRLF line endings, non-breaking and zero-width spaces, and lowercase game names. A puzzle name without a time right after it ("Queens #892 oli vaikea") is not a score. Pinpoint and Crossclimb are never parsed.
+It tolerates chatter around the result, several results in one message, photo captions, CRLF line endings, non-breaking and zero-width spaces, and lowercase game names. A puzzle name without a time right after it ("Queens #892 oli vaikea") is not a score.
+
+Pinpoint and Crossclimb are never parsed as scores. `findShamefulGames` only spots their results so the bot can shame the poster. It looks for a `Pinpoint #512 | …` header or a `lnkd.in/pinpoint` / `lnkd.in/crossclimb` link. A mention like "Pinpoint #512 oli helppo" goes unpunished.
 
 ## Project layout
 
@@ -162,7 +164,7 @@ Every log entry is a JSON object with an `event` field:
 
 | Event | Meaning |
 |---|---|
-| `group_message` | A message in our group. Has `from_name`, `date`, `text`, `scores` (parsed, empty if none) and `raw` (the full update). |
+| `group_message` | A message in our group. Has `from_name`, `date`, `text`, `scores` (parsed, empty if none), `shameful_games` and `raw` (the full update). |
 | `bot_membership_changed` | The bot was added, removed or promoted somewhere. `allowed_chat` says whether it was our group. |
 | `ignored_update` | An update from another chat, or of a type we don't handle. |
 | `chat_migrated` | **Action required**, see below. |
