@@ -1,0 +1,21 @@
+{
+  "update_id": 701234504,
+  "message": {
+    "message_id": 311,
+    "from": {
+      "id": 7766554433,
+      "is_bot": false,
+      "first_name": "Stranger",
+      "username": "stranger_danger",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": -4987654321,
+      "title": "Random group",
+      "type": "group",
+      "all_members_are_administrators": true
+    },
+    "date": 1791525792,
+    "text": "Zip #213 | 0:21 🏁\nlnkd.in/zip."
+  }
+}

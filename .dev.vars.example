@@ -1,0 +1,10 @@
+# Copy to .dev.vars for local development. .dev.vars is gitignored.
+
+# Any value works locally; send the same value in the
+# X-Telegram-Bot-Api-Secret-Token header when curling `wrangler dev`.
+# This is NOT the production secret, which lives only in GitHub.
+WEBHOOK_SECRET=local-dev-secret
+
+# Only needed for `npm run webhook:info` / `npm run webhook:delete`.
+# The Worker itself never uses the bot token.
+TELEGRAM_BOT_TOKEN=

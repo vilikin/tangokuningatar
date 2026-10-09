@@ -1,0 +1,43 @@
+{
+  "update_id": 701234502,
+  "message": {
+    "message_id": 1043,
+    "from": {
+      "id": 1234567892,
+      "is_bot": false,
+      "first_name": "Mikko",
+      "language_code": "fi"
+    },
+    "chat": {
+      "id": -5465433776,
+      "title": "Tangokuningattaret",
+      "type": "group",
+      "all_members_are_administrators": true
+    },
+    "date": 1791523207,
+    "photo": [
+      {
+        "file_id": "AgACAgQAAxkBAAIEE2cPhotoSmall",
+        "file_unique_id": "AQADsmall",
+        "file_size": 1520,
+        "width": 90,
+        "height": 67
+      },
+      {
+        "file_id": "AgACAgQAAxkBAAIEE2cPhotoLarge",
+        "file_unique_id": "AQADlarge",
+        "file_size": 81234,
+        "width": 1280,
+        "height": 960
+      }
+    ],
+    "caption": "Queens #548 | 1:42 👑\nlnkd.in/queens.",
+    "caption_entities": [
+      {
+        "offset": 22,
+        "length": 14,
+        "type": "url"
+      }
+    ]
+  }
+}

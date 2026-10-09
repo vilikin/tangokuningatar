@@ -1,0 +1,32 @@
+{
+  "name": "tangokuningatar",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "smoke": "node scripts/smoke-test.ts",
+    "types": "wrangler types --strict-vars=false",
+    "typecheck": "npm run types && tsc -p . && tsc -p scripts",
+    "tail": "wrangler tail --format pretty",
+    "webhook:info": "node --env-file-if-exists=.dev.vars scripts/telegram.ts webhook-info",
+    "webhook:delete": "node --env-file-if-exists=.dev.vars scripts/telegram.ts delete-webhook"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.0",
+    "@types/node": "^24.19.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3",
+    "wrangler": "^4.149.0"
+  },
+  "allowScripts": {
+    "esbuild": true,
+    "workerd": true,
+    "fsevents": false
+  }
+}

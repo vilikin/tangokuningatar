@@ -1,0 +1,31 @@
+name: Telegram webhook
+
+# Manual debugging tools. To (re)register the webhook, run the CI workflow on main instead.
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: What to do
+        type: choice
+        options:
+          - webhook-info
+          - delete-webhook
+        default: webhook-info
+
+permissions:
+  contents: read
+
+jobs:
+  webhook:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Run ${{ inputs.command }}
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          COMMAND: ${{ inputs.command }}
+        run: node scripts/telegram.ts "$COMMAND"

@@ -1,0 +1,28 @@
+{
+  "update_id": 701234503,
+  "message": {
+    "message_id": 7,
+    "from": {
+      "id": 7766554433,
+      "is_bot": false,
+      "first_name": "Stranger",
+      "username": "stranger_danger",
+      "language_code": "en"
+    },
+    "chat": {
+      "id": 7766554433,
+      "first_name": "Stranger",
+      "username": "stranger_danger",
+      "type": "private"
+    },
+    "date": 1791525660,
+    "text": "/start",
+    "entities": [
+      {
+        "offset": 0,
+        "length": 6,
+        "type": "bot_command"
+      }
+    ]
+  }
+}
