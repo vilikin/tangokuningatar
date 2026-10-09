@@ -1,0 +1,38 @@
+{
+  "update_id": 701234500,
+  "my_chat_member": {
+    "chat": {
+      "id": -5465433776,
+      "title": "Tangokuningattaret",
+      "type": "group",
+      "all_members_are_administrators": true
+    },
+    "from": {
+      "id": 1234567891,
+      "is_bot": false,
+      "first_name": "Aino",
+      "last_name": "Virtanen",
+      "username": "ainov",
+      "language_code": "fi"
+    },
+    "date": 1791521700,
+    "old_chat_member": {
+      "user": {
+        "id": 8000000001,
+        "is_bot": true,
+        "first_name": "Tangokuningatar",
+        "username": "tangokuningatar_bot"
+      },
+      "status": "left"
+    },
+    "new_chat_member": {
+      "user": {
+        "id": 8000000001,
+        "is_bot": true,
+        "first_name": "Tangokuningatar",
+        "username": "tangokuningatar_bot"
+      },
+      "status": "member"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "tangokuningatar",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  // Every deployed version would otherwise get its own preview URL. One public endpoint is enough.
+  "preview_urls": false,
+  // Persist console output in Workers Logs (dashboard), not just `wrangler tail`.
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    // Our Telegram group. If the group is ever upgraded to a supergroup, its ID changes
+    // (to a -100… number) and the Worker logs a "chat_migrated" warning with the new value.
+    "ALLOWED_CHAT_ID": "-5465433776"
+  },
+  "secrets": {
+    // Uploaded from GitHub secrets on deploy; locally read from .dev.vars.
+    "required": ["WEBHOOK_SECRET"]
+  }
+}

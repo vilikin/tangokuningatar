@@ -1,0 +1,22 @@
+{
+  "update_id": 701234506,
+  "message": {
+    "message_id": 1050,
+    "from": {
+      "id": 1234567891,
+      "is_bot": false,
+      "first_name": "Aino",
+      "last_name": "Virtanen",
+      "username": "ainov",
+      "language_code": "fi"
+    },
+    "chat": {
+      "id": -5465433776,
+      "title": "Tangokuningattaret",
+      "type": "group",
+      "all_members_are_administrators": true
+    },
+    "date": 1791529200,
+    "migrate_to_chat_id": -1003141592653
+  }
+}
