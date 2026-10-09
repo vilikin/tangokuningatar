@@ -7,12 +7,14 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "wrangler dev --var TELEGRAM_BOT_TOKEN:",
+    "dev": "npm run db:migrate:local && wrangler dev --var TELEGRAM_BOT_TOKEN:",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke-test.ts",
     "types": "wrangler types --strict-vars=false",
     "typecheck": "npm run types && tsc -p . && tsc -p scripts",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "tail": "wrangler tail --format pretty",
     "webhook:info": "node --env-file-if-exists=.dev.vars scripts/telegram.ts webhook-info",
     "webhook:delete": "node --env-file-if-exists=.dev.vars scripts/telegram.ts delete-webhook"

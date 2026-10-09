@@ -15,6 +15,15 @@
     // (to a -100… number) and the Worker logs a "chat_migrated" warning with the new value.
     "ALLOWED_CHAT_ID": "-5465433776"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tangokuningatar",
+      "database_id": "452d1793-da3c-4393-acee-72ad4b560b9c",
+      // Applied by CI before every deploy (`npm run db:migrate:remote`).
+      "migrations_dir": "migrations"
+    }
+  ],
   "secrets": {
     // Uploaded from GitHub secrets on deploy; locally read from .dev.vars.
     "required": ["WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN"]

@@ -1,6 +1,10 @@
+import { applyD1Migrations, type D1Migration, env, reset } from "cloudflare:test";
 import { afterEach, beforeEach, expect, vi } from "vitest";
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Fresh schema for every test; reset() below wipes all data again.
+  await applyD1Migrations(env.DB, (env as unknown as { TEST_MIGRATIONS: D1Migration[] }).TEST_MIGRATIONS);
+
   // Silence and record everything the Worker logs. The test runner's console
   // ignores spyOn/assignment, so swap the whole global for one with mocks.
   vi.stubGlobal(
@@ -18,4 +22,8 @@ afterEach(() => {
   }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+afterEach(async () => {
+  await reset();
 });

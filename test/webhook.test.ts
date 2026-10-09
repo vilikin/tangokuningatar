@@ -19,7 +19,7 @@ describe("secret token check", () => {
   it("accepts the correct secret", async () => {
     const response = await send(groupMessage);
     expect(response.status).toBe(200);
-    expect(logged("log")).toHaveLength(1);
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "group_message" }));
   });
 
   it.each([
