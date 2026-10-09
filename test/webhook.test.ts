@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import groupMessage from "./fixtures/group-text-message.json";
-import { allLogOutput, logged, send } from "./helpers";
+import groupMessage from "./fixtures/group-score-message.json";
+import { allLogOutput, logged, send, telegramCalls } from "./helpers";
 
 describe("routing", () => {
   it.each(["/", "/telegram", "/telegram/webhook/", "/webhook"])("returns 404 for %s", async (path) => {
@@ -35,6 +35,7 @@ describe("secret token check", () => {
     expect(await response.text()).toBe("");
     expect(allLogOutput()).not.toContain(groupMessage.message.text);
     expect(logged("log")).toEqual([]);
+    expect(telegramCalls()).toEqual([]);
   });
 
   it("rejects everything when WEBHOOK_SECRET is not configured", async () => {
@@ -42,6 +43,7 @@ describe("secret token check", () => {
     expect(response.status).toBe(401);
     expect(logged("log")).toEqual([]);
     expect(logged("error")).toEqual([expect.objectContaining({ event: "config_error" })]);
+    expect(telegramCalls()).toEqual([]);
   });
 });
 

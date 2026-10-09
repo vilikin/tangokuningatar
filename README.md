@@ -2,7 +2,7 @@
 
 Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are deliberately not supported.
 
-**Current phase:** a Cloudflare Worker that receives Telegram updates through a webhook, verifies them and logs what arrives. It never replies, and it never calls Telegram at all. Score parsing, storage (D1) and leaderboards come later.
+**Current phase:** a Cloudflare Worker that receives Telegram updates through a webhook, verifies them, and parses the scores people post. It reacts to each score with 👍 and, for now, replies with what it parsed. Storage (D1) and leaderboards come later.
 
 ## How it works
 
@@ -10,10 +10,11 @@ Telegram POSTs every update to `https://tangokuningatar.<subdomain>.workers.dev/
 
 1. Returns 404 for any other path, and 405 for any method other than POST.
 2. Returns 401 and does nothing else unless the `X-Telegram-Bot-Api-Secret-Token` header matches `WEBHOOK_SECRET`. The comparison is constant-time.
-3. For messages from our group (`ALLOWED_CHAT_ID`), logs the update ID, sender, date and text, plus the raw update JSON.
-4. Ignores updates from every other chat, including private chats, and logs only a metadata line with no message content. If someone adds the bot to another chat, that line records who did it.
-5. Logs a `chat_migrated` warning with the new chat ID if Telegram upgrades our group to a supergroup. See [When the group becomes a supergroup](#when-the-group-becomes-a-supergroup).
-6. Always answers authenticated requests with 200, even if processing fails. Otherwise Telegram would keep redelivering the same update.
+3. For messages from our group (`ALLOWED_CHAT_ID`), logs the update ID, sender, date, text and parsed scores, plus the raw update JSON.
+4. If a message from our group contains one or more scores, reacts to it with 👍 and replies with what was parsed. Other messages get no response.
+5. Ignores updates from every other chat, including private chats, and logs only a metadata line with no message content. If someone adds the bot to another chat, that line records who did it.
+6. Logs a `chat_migrated` warning with the new chat ID if Telegram upgrades our group to a supergroup. See [When the group becomes a supergroup](#when-the-group-becomes-a-supergroup).
+7. Always answers authenticated requests with 200, even if processing fails. Otherwise Telegram would keep redelivering the same update. The reaction and reply are sent after the 200, so a slow Bot API call can't cause a redelivery.
 
 Security is layered:
 
@@ -25,15 +26,30 @@ Security is layered:
 |---|---|
 | `ALLOWED_CHAT_ID` | `vars` in [wrangler.jsonc](wrangler.jsonc) (public, harmless on its own) |
 | `WEBHOOK_SECRET` | GitHub secret, uploaded to the Worker on every deploy |
-| `TELEGRAM_BOT_TOKEN` | GitHub secret, used only to register the webhook. The Worker doesn't have it. |
+| `TELEGRAM_BOT_TOKEN` | GitHub secret, uploaded to the Worker on every deploy and used to register the webhook |
 | `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` | GitHub secrets, used by the deploy job |
+
+## Score parsing
+
+[src/parser.ts](src/parser.ts) reads LinkedIn's share text. A result starts with a `<Game> #<number>` line. The time follows either on that line (`Wend #123 | 1:22 🌀`) or at the start of the next one (`Queens #892` / `1:00 👑`). "no hints" and "no redraws" count if they appear between the header and the `lnkd.in` link. Each score has:
+
+| Field | Example |
+|---|---|
+| `game` | `queens`, `tango`, `zip`, `mini-sudoku`, `patches`, `wend` |
+| `puzzleNumber` | `206` |
+| `timeSeconds` | `29` (from `0:29`; `h:mm:ss` also works) |
+| `noHints`, `noRedraws` | `true` if the text says so, otherwise `false` |
+
+It tolerates chatter around the result, several results in one message, photo captions, CRLF line endings, non-breaking and zero-width spaces, and lowercase game names. A puzzle name without a time right after it ("Queens #892 oli vaikea") is not a score. Pinpoint and Crossclimb are never parsed.
 
 ## Project layout
 
 ```
 src/index.ts          HTTP layer: routing, secret check, always-200 for authenticated requests
 src/auth.ts           constant-time secret comparison
-src/handler.ts        allowlist, migration warning, logging
+src/handler.ts        allowlist, migration warning, logging, reacting and replying to scores
+src/parser.ts         parses LinkedIn share texts into scores
+src/bot-api.ts        minimal Bot API client (plain fetch); only logs when there's no token
 src/telegram.ts       the Telegram types we read
 test/                 Vitest tests, run inside the Workers runtime; fixtures/ holds sample updates
 scripts/telegram.ts   set-webhook / webhook-info / delete-webhook
@@ -80,6 +96,8 @@ npm run types
 
 `.dev.vars` has a local `WEBHOOK_SECRET` (`local-dev-secret`). It doesn't need to match production, because Telegram never calls your machine.
 
+`npm run dev` and the smoke test always run the Worker without a bot token, even if `.dev.vars` has one. Instead of reacting and replying, the Worker logs a `telegram_dry_run` entry with the call it would have made. Curling a fixture can't post into the real group.
+
 Run the tests, the typecheck, and the smoke test (which starts `wrangler dev` and sends it real requests):
 
 ```bash
@@ -105,10 +123,10 @@ npm run dev
 In another terminal, POST any file from [test/fixtures](test/fixtures) the way Telegram would:
 
 ```bash
-curl -i -X POST http://localhost:8787/telegram/webhook -H "Content-Type: application/json" -H "X-Telegram-Bot-Api-Secret-Token: local-dev-secret" --data @test/fixtures/group-text-message.json
+curl -i -X POST http://localhost:8787/telegram/webhook -H "Content-Type: application/json" -H "X-Telegram-Bot-Api-Secret-Token: local-dev-secret" --data @test/fixtures/group-score-message.json
 ```
 
-The log line appears in the `npm run dev` terminal. Drop the secret header or change its value to see the 401.
+The log lines appear in the `npm run dev` terminal, including the parsed `scores` and the dry-run reaction and reply. Drop the secret header or change its value to see the 401.
 
 ## Deployment
 
@@ -144,10 +162,12 @@ Every log entry is a JSON object with an `event` field:
 
 | Event | Meaning |
 |---|---|
-| `group_message` | A message in our group. Has `from_name`, `date`, `text` and `raw` (the full update). |
+| `group_message` | A message in our group. Has `from_name`, `date`, `text`, `scores` (parsed, empty if none) and `raw` (the full update). |
 | `bot_membership_changed` | The bot was added, removed or promoted somewhere. `allowed_chat` says whether it was our group. |
 | `ignored_update` | An update from another chat, or of a type we don't handle. |
 | `chat_migrated` | **Action required**, see below. |
+| `telegram_error` | Reacting or replying failed. `error` has Telegram's reason. |
+| `telegram_dry_run` | The Worker has no bot token, so it only logged a reaction or reply. Expected locally, a misconfiguration in production. |
 | `config_error`, `processing_error` | Something is misconfigured or broken. |
 
 ## When the group becomes a supergroup

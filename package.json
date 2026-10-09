@@ -7,7 +7,7 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "wrangler dev",
+    "dev": "wrangler dev --var TELEGRAM_BOT_TOKEN:",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke-test.ts",

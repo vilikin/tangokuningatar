@@ -17,6 +17,6 @@
   },
   "secrets": {
     // Uploaded from GitHub secrets on deploy; locally read from .dev.vars.
-    "required": ["WEBHOOK_SECRET"]
+    "required": ["WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN"]
   }
 }

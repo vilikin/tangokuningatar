@@ -11,11 +11,26 @@ const SECRET = "smoke-test-secret";
 const WEBHOOK_URL = `http://localhost:${PORT}/telegram/webhook`;
 const STARTUP_TIMEOUT_MS = 30_000;
 
-const wrangler = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--show-interactive-dev-session=false"], {
-  env: { ...process.env, WEBHOOK_SECRET: SECRET },
-  stdio: ["ignore", "inherit", "inherit"],
-  detached: true,
-});
+// --var beats .dev.vars. The empty token puts the Worker in dry-run mode, so the
+// fixture's score can't be answered in the real group whatever .dev.vars holds.
+const wrangler = spawn(
+  "npx",
+  [
+    "wrangler",
+    "dev",
+    "--port",
+    String(PORT),
+    "--show-interactive-dev-session=false",
+    "--var",
+    `WEBHOOK_SECRET:${SECRET}`,
+    "--var",
+    "TELEGRAM_BOT_TOKEN:",
+  ],
+  {
+    stdio: ["ignore", "inherit", "inherit"],
+    detached: true,
+  },
+);
 let exited = false;
 wrangler.on("exit", () => (exited = true));
 
@@ -49,7 +64,7 @@ function expectStatus(name: string, actual: number, expected: number): void {
 
 try {
   await waitForWorker();
-  const update = await readFile(new URL("../test/fixtures/group-text-message.json", import.meta.url), "utf8");
+  const update = await readFile(new URL("../test/fixtures/group-score-message.json", import.meta.url), "utf8");
   expectStatus("valid secret", (await post(SECRET, update)).status, 200);
   expectStatus("wrong secret", (await post("wrong", update)).status, 401);
   expectStatus("GET", (await fetch(WEBHOOK_URL)).status, 405);

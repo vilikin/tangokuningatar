@@ -1,11 +1,16 @@
+import type { BotApi } from "./bot-api";
+import { formatTime, GAMES, parseScores, type Score } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
+// Must be one of the emoji Telegram allows bots to react with.
+export const SCORE_REACTION = "👍";
+
 /**
- * Logs an authenticated update. Only updates from ALLOWED_CHAT_ID are logged in
- * full; anything else gets a single metadata line without message content.
- * Nothing here calls Telegram: the bot never replies or leaves chats.
+ * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
+ * in full, and only scores posted there get a reaction and a reply. Anything
+ * else gets a single metadata line without message content.
  */
-export function handleUpdate(update: Update, env: Env): void {
+export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
   const allowedChatId = env.ALLOWED_CHAT_ID?.trim();
   if (!allowedChatId) {
     console.error({
@@ -17,7 +22,7 @@ export function handleUpdate(update: Update, env: Env): void {
   }
 
   if (update.message) {
-    handleMessage(update, update.message, allowedChatId);
+    await handleMessage(update, update.message, allowedChatId, bot);
   } else if (update.my_chat_member) {
     handleMyChatMember(update, update.my_chat_member, allowedChatId);
   } else {
@@ -30,7 +35,7 @@ export function handleUpdate(update: Update, env: Env): void {
   }
 }
 
-function handleMessage(update: Update, message: Message, allowedChatId: string): void {
+async function handleMessage(update: Update, message: Message, allowedChatId: string, bot: BotApi): Promise<void> {
   const chatId = String(message.chat.id);
 
   // Telegram's half of a group → supergroup upgrade that arrives in the *new* chat,
@@ -48,6 +53,8 @@ function handleMessage(update: Update, message: Message, allowedChatId: string):
     logMigration(update, allowedChatId, String(message.migrate_to_chat_id));
   }
 
+  const text = message.text ?? message.caption ?? null;
+  const scores = text ? parseScores(text) : [];
   console.log({
     event: "group_message",
     update_id: update.update_id,
@@ -55,9 +62,41 @@ function handleMessage(update: Update, message: Message, allowedChatId: string):
     date: toIsoDate(message.date),
     ...describeSender(message.from),
     ...(message.sender_chat && { sender_chat_id: message.sender_chat.id, sender_chat_title: message.sender_chat.title }),
-    text: message.text ?? message.caption ?? null,
+    text,
+    scores,
     raw: JSON.stringify(update),
   });
+
+  if (scores.length > 0) {
+    await acknowledgeScores(update, message, scores, bot);
+  }
+}
+
+async function acknowledgeScores(update: Update, message: Message, scores: Score[], bot: BotApi): Promise<void> {
+  // Independent calls: if reacting fails (e.g. the group restricts reactions), still reply.
+  const results = await Promise.allSettled([
+    bot.setMessageReaction(message.chat.id, message.message_id, SCORE_REACTION),
+    bot.replyTo(message.chat.id, message.message_id, formatReply(scores)),
+  ]);
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error({ event: "telegram_error", update_id: update.update_id, error: String(result.reason) });
+    }
+  }
+}
+
+/** Temporary: shows exactly what was parsed, until scores are stored and ranked. */
+export function formatReply(scores: Score[]): string {
+  return scores
+    .map((score) =>
+      [
+        `Parsed ${GAMES[score.game]} #${score.puzzleNumber}`,
+        `Time: ${formatTime(score.timeSeconds)} (${score.timeSeconds} s)`,
+        `No hints: ${score.noHints ? "yes" : "no"}`,
+        `No redraws: ${score.noRedraws ? "yes" : "no"}`,
+      ].join("\n"),
+    )
+    .join("\n\n");
 }
 
 function handleMyChatMember(update: Update, change: ChatMemberUpdated, allowedChatId: string): void {

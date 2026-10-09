@@ -7,12 +7,15 @@ beforeEach(() => {
     "console",
     Object.assign(Object.create(console), { log: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   );
-  vi.spyOn(globalThis, "fetch");
+  // Every outgoing request gets a successful Bot API response unless a test says otherwise.
+  vi.spyOn(globalThis, "fetch").mockImplementation(async () => Response.json({ ok: true, result: true }));
 });
 
 afterEach(() => {
-  // The Worker only listens: it must never call Telegram (or anything else).
-  expect(globalThis.fetch).not.toHaveBeenCalled();
+  // The only thing the Worker may ever call is the Bot API, with the configured token.
+  for (const [input] of vi.mocked(globalThis.fetch).mock.calls) {
+    expect(String(input)).toMatch(/^https:\/\/api\.telegram\.org\/bottest-bot-token\/\w+$/);
+  }
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
