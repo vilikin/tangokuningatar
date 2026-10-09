@@ -4,6 +4,7 @@ import botAddedToOurGroup from "./fixtures/bot-added-to-our-group.json";
 import groupChatMessage from "./fixtures/group-chat-message.json";
 import groupMigrated from "./fixtures/group-migrated-to-supergroup.json";
 import groupPhoto from "./fixtures/group-photo-with-caption.json";
+import groupPinpoint from "./fixtures/group-pinpoint-message.json";
 import groupScore from "./fixtures/group-score-message.json";
 import otherGroupMessage from "./fixtures/other-group-message.json";
 import privateMessage from "./fixtures/private-message.json";
@@ -28,6 +29,7 @@ describe("messages from our group", () => {
         from_username: "ainov",
         text: groupScore.message.text,
         scores: [{ game: "patches", puzzleNumber: 206, timeSeconds: 29, noHints: true, noRedraws: true }],
+        shameful_games: [],
         raw: JSON.stringify(groupScore),
       },
     ]);
@@ -143,6 +145,77 @@ describe("acknowledging scores", () => {
       expect.objectContaining({ event: "telegram_dry_run", method: "setMessageReaction" }),
       expect.objectContaining({ event: "telegram_dry_run", method: "sendMessage" }),
     ]);
+  });
+});
+
+describe("shaming Pinpoint and Crossclimb", () => {
+  it("reacts with a thumbs down and shames the poster", async () => {
+    await send(groupPinpoint);
+
+    expect(logged("log")).toEqual([expect.objectContaining({ scores: [], shameful_games: ["pinpoint"] })]);
+    expect(telegramCalls()).toEqual([
+      {
+        method: "setMessageReaction",
+        params: { chat_id: OUR_GROUP, message_id: 901045, reaction: [{ type: "emoji", emoji: "👎" }] },
+      },
+      {
+        method: "sendMessage",
+        params: {
+          chat_id: OUR_GROUP,
+          // 901045 % 3 picks the "think about what you've done" line.
+          text: "Pinpoint? In this group? 👎 Mikko, think about what you've done.",
+          reply_parameters: { message_id: 901045 },
+          link_preview_options: { is_disabled: true },
+        },
+      },
+    ]);
+  });
+
+  it.each([
+    [901044, "🔔 Shame! 🔔 Aino posted a Crossclimb result. We don't do that here."],
+    [901045, "Crossclimb? In this group? 👎 Aino, think about what you've done."],
+    [901046, "🚨 Crossclimb detected. Aino, this is a Queens, Tango, Zip, Mini Sudoku, Patches and Wend household."],
+  ])("varies the shame by message (%i)", async (messageId, expected) => {
+    const text = "Crossclimb #377 | 1:23 🪜\nlnkd.in/crossclimb.";
+    await send({ ...groupScore, message: { ...groupScore.message, message_id: messageId, text, entities: [] } });
+
+    expect(telegramCalls().find(({ method }) => method === "sendMessage")?.params).toMatchObject({ text: expected });
+  });
+
+  it("shames both games at once", async () => {
+    const text = "Pinpoint #512 | 2 guesses\nlnkd.in/pinpoint.\n\nCrossclimb #377 | 1:23\nlnkd.in/crossclimb.";
+    await send({ ...groupScore, message: { ...groupScore.message, message_id: 901044, text, entities: [] } });
+
+    expect(telegramCalls().find(({ method }) => method === "sendMessage")?.params).toMatchObject({
+      text: "🔔 Shame! 🔔 Aino posted a Pinpoint and Crossclimb result. We don't do that here.",
+    });
+  });
+
+  it("gives a thumbs down even when a real score comes along, but still lists the score", async () => {
+    const text = `${groupPinpoint.message.text}\n\nQueens #892\n1:00 👑\nlnkd.in/queens.`;
+    await send({ ...groupPinpoint, message: { ...groupPinpoint.message, text, entities: [] } });
+
+    expect(telegramCalls()).toEqual([
+      expect.objectContaining({ method: "setMessageReaction", params: expect.objectContaining({ reaction: [{ type: "emoji", emoji: "👎" }] }) }),
+      expect.objectContaining({
+        method: "sendMessage",
+        params: expect.objectContaining({
+          text: "Pinpoint? In this group? 👎 Mikko, think about what you've done.\n\nParsed Queens #892\nTime: 1:00 (60 s)\nNo hints: no\nNo redraws: no",
+        }),
+      }),
+    ]);
+  });
+
+  it("doesn't shame a mere mention", async () => {
+    await send({ ...groupScore, message: { ...groupScore.message, text: "Pinpoint #512 oli helppo, en kyllä postaa", entities: [] } });
+
+    expect(telegramCalls()).toEqual([]);
+  });
+
+  it("doesn't shame in other chats", async () => {
+    await send({ ...groupPinpoint, message: { ...groupPinpoint.message, chat: otherGroupMessage.message.chat } });
+
+    expect(telegramCalls()).toEqual([]);
   });
 });
 

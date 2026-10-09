@@ -1,14 +1,16 @@
 import type { BotApi } from "./bot-api";
-import { formatTime, GAMES, parseScores, type Score } from "./parser";
+import { findShamefulGames, formatTime, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
-// Must be one of the emoji Telegram allows bots to react with.
+// Must be among the emoji Telegram allows bots to react with.
 export const SCORE_REACTION = "👍";
+export const SHAME_REACTION = "👎";
 
 /**
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
- * in full, and only scores posted there get a reaction and a reply. Anything
- * else gets a single metadata line without message content.
+ * in full, and only scores (or Pinpoint/Crossclimb results) posted there get a
+ * reaction and a reply. Anything else gets a single metadata line without
+ * message content.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
   const allowedChatId = env.ALLOWED_CHAT_ID?.trim();
@@ -55,6 +57,7 @@ async function handleMessage(update: Update, message: Message, allowedChatId: st
 
   const text = message.text ?? message.caption ?? null;
   const scores = text ? parseScores(text) : [];
+  const shamefulGames = text ? findShamefulGames(text) : [];
   console.log({
     event: "group_message",
     update_id: update.update_id,
@@ -64,19 +67,24 @@ async function handleMessage(update: Update, message: Message, allowedChatId: st
     ...(message.sender_chat && { sender_chat_id: message.sender_chat.id, sender_chat_title: message.sender_chat.title }),
     text,
     scores,
+    shameful_games: shamefulGames,
     raw: JSON.stringify(update),
   });
 
-  if (scores.length > 0) {
-    await acknowledgeScores(update, message, scores, bot);
+  // A bot gets one reaction per message, so shame wins over a score posted alongside.
+  if (shamefulGames.length > 0) {
+    const shame = formatShame(shamefulGames, message);
+    await respond(update, message, SHAME_REACTION, scores.length > 0 ? `${shame}\n\n${formatReply(scores)}` : shame, bot);
+  } else if (scores.length > 0) {
+    await respond(update, message, SCORE_REACTION, formatReply(scores), bot);
   }
 }
 
-async function acknowledgeScores(update: Update, message: Message, scores: Score[], bot: BotApi): Promise<void> {
+async function respond(update: Update, message: Message, reaction: string, reply: string, bot: BotApi): Promise<void> {
   // Independent calls: if reacting fails (e.g. the group restricts reactions), still reply.
   const results = await Promise.allSettled([
-    bot.setMessageReaction(message.chat.id, message.message_id, SCORE_REACTION),
-    bot.replyTo(message.chat.id, message.message_id, formatReply(scores)),
+    bot.setMessageReaction(message.chat.id, message.message_id, reaction),
+    bot.replyTo(message.chat.id, message.message_id, reply),
   ]);
   for (const result of results) {
     if (result.status === "rejected") {
@@ -97,6 +105,24 @@ export function formatReply(scores: Score[]): string {
       ].join("\n"),
     )
     .join("\n\n");
+}
+
+const SUPPORTED_GAMES = joinNames(Object.values(GAMES));
+
+const SHAME_LINES: ((name: string, games: string) => string)[] = [
+  (name, games) => `🔔 Shame! 🔔 ${name} posted a ${games} result. We don't do that here.`,
+  (name, games) => `${games}? In this group? 👎 ${name}, think about what you've done.`,
+  (name, games) => `🚨 ${games} detected. ${name}, this is a ${SUPPORTED_GAMES} household.`,
+];
+
+/** Picks a line by message ID: varied in the chat, predictable in tests. */
+export function formatShame(games: ShamefulGameId[], message: Message): string {
+  const line = SHAME_LINES[message.message_id % SHAME_LINES.length]!;
+  return line(message.from?.first_name ?? "Someone", joinNames(games.map((game) => SHAMEFUL_GAMES[game])));
+}
+
+function joinNames(names: string[]): string {
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
 }
 
 function handleMyChatMember(update: Update, change: ChatMemberUpdated, allowedChatId: string): void {
