@@ -1,13 +1,11 @@
 {
-  "update_id": 701234506,
+  "update_id": 701234508,
   "message": {
-    "message_id": 901050,
+    "message_id": 901044,
     "from": {
-      "id": 1234567891,
+      "id": 1234567892,
       "is_bot": false,
-      "first_name": "Aino",
-      "last_name": "Virtanen",
-      "username": "ainov",
+      "first_name": "Mikko",
       "language_code": "fi"
     },
     "chat": {
@@ -16,7 +14,7 @@
       "type": "group",
       "all_members_are_administrators": true
     },
-    "date": 1791529200,
-    "migrate_to_chat_id": -1003141592653
+    "date": 1791523541,
+    "text": "Huomenta! Queens #892 oli tänään vaikea 😅"
   }
 }
