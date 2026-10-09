@@ -32,6 +32,8 @@ export interface Message {
   sender_chat?: Chat;
   text?: string;
   caption?: string;
+  /** Present on forwarded messages. */
+  forward_origin?: object;
   migrate_to_chat_id?: number;
   migrate_from_chat_id?: number;
 }

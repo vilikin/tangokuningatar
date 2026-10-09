@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findShamefulGames, formatTime, parseScores, type Score } from "../src/parser";
+import { findShamefulGames, parseScores, type Score } from "../src/parser";
 
 const score = (overrides: Partial<Score> & Pick<Score, "game" | "puzzleNumber" | "timeSeconds">): Score => ({
   noHints: false,
@@ -76,8 +76,8 @@ describe("robustness", () => {
 
   it.each([
     ["Windows line endings", "Tango #732\r\n1:02 🌗\r\nlnkd.in/tango."],
-    ["non-breaking spaces", "Tango #732\n1:02 🌗"],
-    ["zero-width characters", "​Tango #732​\n1:02 🌗"],
+    ["non-breaking spaces", "Tango\u00A0#732\n1:02\u00A0🌗"],
+    ["zero-width characters", "\u200BTango #732\u200B\n1:02 🌗"],
     ["indentation and trailing spaces", "   Tango #732   \n   1:02 🌗   "],
     ["lowercase game name", "tango #732\n1:02 🌗"],
     ["a space after #", "Tango # 732\n1:02 🌗"],
@@ -88,7 +88,7 @@ describe("robustness", () => {
   });
 
   it("handles a multi-word game name split by odd whitespace", () => {
-    expect(parseScores("Mini  Sudoku #424 | 2:16 ✏️")).toEqual([
+    expect(parseScores("Mini\u00A0 Sudoku #424 | 2:16 ✏️")).toEqual([
       score({ game: "mini-sudoku", puzzleNumber: 424, timeSeconds: 136 }),
     ]);
   });
@@ -143,17 +143,5 @@ describe("findShamefulGames", () => {
     ["ordinary chat", "Huomenta!"],
   ])("ignores %s", (_, text) => {
     expect(findShamefulGames(text)).toEqual([]);
-  });
-});
-
-describe("formatTime", () => {
-  it.each([
-    [0, "0:00"],
-    [37, "0:37"],
-    [62, "1:02"],
-    [600, "10:00"],
-    [3723, "1:02:03"],
-  ])("formats %i seconds as %s", (seconds, expected) => {
-    expect(formatTime(seconds)).toBe(expected);
   });
 });

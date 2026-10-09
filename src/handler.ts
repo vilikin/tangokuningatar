@@ -1,5 +1,6 @@
 import type { BotApi } from "./bot-api";
-import { findShamefulGames, formatTime, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
+import { saveScores } from "./db";
+import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
 // Must be among the emoji Telegram allows bots to react with.
@@ -8,9 +9,9 @@ export const SHAME_REACTION = "👎";
 
 /**
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
- * in full, and only scores (or Pinpoint/Crossclimb results) posted there get a
- * reaction and a reply. Anything else gets a single metadata line without
- * message content.
+ * in full, and only scores posted there are saved and get a 👍. Pinpoint and
+ * Crossclimb results get a 👎 and a shaming reply. Anything else gets a single
+ * metadata line without message content.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
   const allowedChatId = env.ALLOWED_CHAT_ID?.trim();
@@ -24,7 +25,7 @@ export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promi
   }
 
   if (update.message) {
-    await handleMessage(update, update.message, allowedChatId, bot);
+    await handleMessage(update, update.message, allowedChatId, env.DB, bot);
   } else if (update.my_chat_member) {
     handleMyChatMember(update, update.my_chat_member, allowedChatId);
   } else {
@@ -37,7 +38,13 @@ export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promi
   }
 }
 
-async function handleMessage(update: Update, message: Message, allowedChatId: string, bot: BotApi): Promise<void> {
+async function handleMessage(
+  update: Update,
+  message: Message,
+  allowedChatId: string,
+  db: D1Database,
+  bot: BotApi,
+): Promise<void> {
   const chatId = String(message.chat.id);
 
   // Telegram's half of a group → supergroup upgrade that arrives in the *new* chat,
@@ -71,40 +78,52 @@ async function handleMessage(update: Update, message: Message, allowedChatId: st
     raw: JSON.stringify(update),
   });
 
-  // A bot gets one reaction per message, so shame wins over a score posted alongside.
+  const stored = scores.length > 0 && (await storeScores(update, message, scores, db));
+
+  // A bot gets one reaction per message, so shame wins over a score posted alongside
+  // (which is still saved).
   if (shamefulGames.length > 0) {
-    const shame = formatShame(shamefulGames, message);
-    await respond(update, message, SHAME_REACTION, scores.length > 0 ? `${shame}\n\n${formatReply(scores)}` : shame, bot);
-  } else if (scores.length > 0) {
-    await respond(update, message, SCORE_REACTION, formatReply(scores), bot);
+    await settle(update, [
+      bot.setMessageReaction(message.chat.id, message.message_id, SHAME_REACTION),
+      bot.replyTo(message.chat.id, message.message_id, formatShame(shamefulGames, message)),
+    ]);
+  } else if (stored) {
+    await settle(update, [bot.setMessageReaction(message.chat.id, message.message_id, SCORE_REACTION)]);
   }
 }
 
-async function respond(update: Update, message: Message, reaction: string, reply: string, bot: BotApi): Promise<void> {
-  // Independent calls: if reacting fails (e.g. the group restricts reactions), still reply.
-  const results = await Promise.allSettled([
-    bot.setMessageReaction(message.chat.id, message.message_id, reaction),
-    bot.replyTo(message.chat.id, message.message_id, reply),
-  ]);
-  for (const result of results) {
+/** Returns whether the scores are in the database (newly saved or already there). */
+async function storeScores(update: Update, message: Message, scores: Score[], db: D1Database): Promise<boolean> {
+  const sender = message.from;
+  const skipReason = !sender
+    ? "no sender"
+    : sender.is_bot
+      ? "sent by a bot"
+      : message.forward_origin
+        ? "forwarded, would be credited to the wrong person"
+        : null;
+  if (!sender || skipReason) {
+    console.log({ event: "scores_not_saved", update_id: update.update_id, reason: skipReason });
+    return false;
+  }
+
+  try {
+    const { saved, duplicates } = await saveScores(db, message, sender, scores);
+    console.log({ event: "scores_saved", update_id: update.update_id, from_id: sender.id, saved, duplicates });
+    return true;
+  } catch (error) {
+    console.error({ event: "db_error", update_id: update.update_id, error: String(error) });
+    return false;
+  }
+}
+
+/** Runs Bot API calls independently: one failing (e.g. reactions restricted) doesn't stop the others. */
+async function settle(update: Update, calls: Promise<void>[]): Promise<void> {
+  for (const result of await Promise.allSettled(calls)) {
     if (result.status === "rejected") {
       console.error({ event: "telegram_error", update_id: update.update_id, error: String(result.reason) });
     }
   }
-}
-
-/** Temporary: shows exactly what was parsed, until scores are stored and ranked. */
-export function formatReply(scores: Score[]): string {
-  return scores
-    .map((score) =>
-      [
-        `Parsed ${GAMES[score.game]} #${score.puzzleNumber}`,
-        `Time: ${formatTime(score.timeSeconds)} (${score.timeSeconds} s)`,
-        `No hints: ${score.noHints ? "yes" : "no"}`,
-        `No redraws: ${score.noRedraws ? "yes" : "no"}`,
-      ].join("\n"),
-    )
-    .join("\n\n");
 }
 
 const SUPPORTED_GAMES = joinNames(Object.values(GAMES));

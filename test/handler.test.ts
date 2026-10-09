@@ -1,3 +1,4 @@
+import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import botAddedToOtherGroup from "./fixtures/bot-added-to-other-group.json";
 import botAddedToOurGroup from "./fixtures/bot-added-to-our-group.json";
@@ -9,30 +10,38 @@ import groupScore from "./fixtures/group-score-message.json";
 import otherGroupMessage from "./fixtures/other-group-message.json";
 import privateMessage from "./fixtures/private-message.json";
 import supergroupMigrated from "./fixtures/supergroup-migrated-from-group.json";
-import { allLogOutput, logged, mockTelegramResponses, send, telegramCalls } from "./helpers";
+import { allLogOutput, logged, mockTelegramResponses, savedPlayers, savedScores, send, telegramCalls } from "./helpers";
 
 const OUR_GROUP = -5465433776;
+
+const AINO = groupScore.message.from;
+
+/** The fixture score message, with changes. */
+function scoreMessage(changes: Record<string, unknown>) {
+  return { ...groupScore, message: { ...groupScore.message, entities: [], ...changes } };
+}
+
+const reactions = () => telegramCalls().filter(({ method }) => method === "setMessageReaction");
+const replies = () => telegramCalls().filter(({ method }) => method === "sendMessage");
 
 describe("messages from our group", () => {
   it("logs sender, date, text, parsed scores and the raw update", async () => {
     const response = await send(groupScore);
 
     expect(response.status).toBe(200);
-    expect(logged("log")).toEqual([
-      {
-        event: "group_message",
-        update_id: 701234501,
-        message_id: 901042,
-        date: "2026-10-09T05:12:33.000Z",
-        from_id: 1234567891,
-        from_name: "Aino Virtanen",
-        from_username: "ainov",
-        text: groupScore.message.text,
-        scores: [{ game: "patches", puzzleNumber: 206, timeSeconds: 29, noHints: true, noRedraws: true }],
-        shameful_games: [],
-        raw: JSON.stringify(groupScore),
-      },
-    ]);
+    expect(logged("log")).toContainEqual({
+      event: "group_message",
+      update_id: 701234501,
+      message_id: 901042,
+      date: "2026-10-09T05:12:33.000Z",
+      from_id: 1234567891,
+      from_name: "Aino Virtanen",
+      from_username: "ainov",
+      text: groupScore.message.text,
+      scores: [{ game: "patches", puzzleNumber: 206, timeSeconds: 29, noHints: true, noRedraws: true }],
+      shameful_games: [],
+      raw: JSON.stringify(groupScore),
+    });
   });
 
   it("logs the bot being added to our group in full", async () => {
@@ -51,63 +60,146 @@ describe("messages from our group", () => {
   });
 });
 
-describe("acknowledging scores", () => {
-  it("reacts to the score and replies with what was parsed", async () => {
+describe("saving scores", () => {
+  it("saves the score and the player, then reacts with a thumbs up", async () => {
     await send(groupScore);
 
+    expect(await savedScores()).toEqual([
+      {
+        telegram_user_id: 1234567891,
+        game: "patches",
+        puzzle_number: 206,
+        time_seconds: 29,
+        no_hints: 1,
+        no_redraws: 1,
+        posted_at: groupScore.message.date,
+        chat_id: OUR_GROUP,
+        message_id: 901042,
+        message_text: groupScore.message.text,
+      },
+    ]);
+    expect(await savedPlayers()).toEqual([
+      {
+        telegram_user_id: 1234567891,
+        username: "ainov",
+        first_name: "Aino",
+        last_name: "Virtanen",
+        first_seen_at: groupScore.message.date,
+        updated_at: groupScore.message.date,
+      },
+    ]);
     expect(telegramCalls()).toEqual([
       {
         method: "setMessageReaction",
         params: { chat_id: OUR_GROUP, message_id: 901042, reaction: [{ type: "emoji", emoji: "👍" }] },
       },
-      {
-        method: "sendMessage",
-        params: {
-          chat_id: OUR_GROUP,
-          text: "Parsed Patches #206\nTime: 0:29 (29 s)\nNo hints: yes\nNo redraws: yes",
-          reply_parameters: { message_id: 901042 },
-          link_preview_options: { is_disabled: true },
-        },
-      },
     ]);
-    expect(logged("error")).toEqual([]);
+    expect(logged("log")).toContainEqual({ event: "scores_saved", update_id: 701234501, from_id: 1234567891, saved: 1, duplicates: 0 });
+  });
+
+  it("saves every score in a message", async () => {
+    const text = "Queens #892\n1:00 👑\nlnkd.in/queens.\n\nZip #571\n0:37 🏁\nlnkd.in/zip.";
+    await send(scoreMessage({ text }));
+
+    expect(await savedScores()).toEqual([
+      expect.objectContaining({ game: "queens", puzzle_number: 892, time_seconds: 60, no_hints: 0, message_text: text }),
+      expect.objectContaining({ game: "zip", puzzle_number: 571, time_seconds: 37, no_hints: 0, message_text: text }),
+    ]);
+    expect(reactions()).toHaveLength(1);
   });
 
   it("reads scores from photo captions", async () => {
     await send(groupPhoto);
 
-    expect(logged("log")).toEqual([
+    expect(await savedScores()).toEqual([
       expect.objectContaining({
-        from_name: "Mikko",
-        from_username: null,
-        text: groupPhoto.message.caption,
-        scores: [{ game: "queens", puzzleNumber: 892, timeSeconds: 60, noHints: false, noRedraws: false }],
+        telegram_user_id: 1234567892,
+        game: "queens",
+        puzzle_number: 892,
+        message_text: groupPhoto.message.caption,
       }),
     ]);
-    expect(telegramCalls().map(({ method }) => method)).toEqual(["setMessageReaction", "sendMessage"]);
+    expect(await savedPlayers()).toEqual([expect.objectContaining({ first_name: "Mikko", last_name: null, username: null })]);
   });
 
-  it("lists every score when one message has several", async () => {
-    const text = "Queens #892\n1:00 👑\nlnkd.in/queens.\n\nZip #571\n0:37 🏁\nlnkd.in/zip.";
-    await send({ ...groupScore, message: { ...groupScore.message, text, entities: [] } });
+  it("keeps the first result when the same puzzle is posted again", async () => {
+    await send(groupScore);
+    const repost = groupScore.message.text.replace("0:29", "0:11");
+    await send({ ...scoreMessage({ message_id: 901060, date: groupScore.message.date + 600, text: repost }), update_id: 701234560 });
 
-    const reply = telegramCalls().find(({ method }) => method === "sendMessage");
-    expect(reply?.params).toMatchObject({
-      text: [
-        "Parsed Queens #892\nTime: 1:00 (60 s)\nNo hints: no\nNo redraws: no",
-        "Parsed Zip #571\nTime: 0:37 (37 s)\nNo hints: no\nNo redraws: no",
-      ].join("\n\n"),
-    });
+    expect(await savedScores()).toEqual([expect.objectContaining({ time_seconds: 29, message_id: 901042 })]);
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "scores_saved", saved: 0, duplicates: 1 }));
+    // Still acknowledged: it's on record.
+    expect(reactions()).toHaveLength(2);
   });
 
-  it("stays quiet about ordinary chat", async () => {
+  it("doesn't duplicate anything when Telegram redelivers an update", async () => {
+    await send(groupScore);
+    await send(groupScore);
+
+    expect(await savedScores()).toHaveLength(1);
+    expect(await savedPlayers()).toHaveLength(1);
+  });
+
+  it("refreshes the player's names from newer messages only", async () => {
+    const later = groupScore.message.date + 86_400;
+    await send(groupScore);
+    await send(
+      scoreMessage({
+        message_id: 901070,
+        date: later,
+        from: { ...AINO, username: "aino_v", last_name: "Korhonen" },
+        text: "Zip #572\n0:30 🏁",
+      }),
+    );
+    // A late redelivery of the first message must not bring the old names back.
+    await send(groupScore);
+
+    expect(await savedPlayers()).toEqual([
+      {
+        telegram_user_id: 1234567891,
+        username: "aino_v",
+        first_name: "Aino",
+        last_name: "Korhonen",
+        first_seen_at: groupScore.message.date,
+        updated_at: later,
+      },
+    ]);
+  });
+
+  it("ignores ordinary chat", async () => {
     await send(groupChatMessage);
 
     expect(logged("log")).toEqual([expect.objectContaining({ event: "group_message", scores: [] })]);
+    expect(await savedScores()).toEqual([]);
     expect(telegramCalls()).toEqual([]);
   });
 
-  it("still replies when the reaction is rejected, and logs why", async () => {
+  it.each([
+    ["forwarded", { forward_origin: { type: "user", date: 1791500000, sender_user: { id: 42, is_bot: false, first_name: "Joku" } } }, "forwarded, would be credited to the wrong person"],
+    ["sent by a bot", { from: { id: 8000000002, is_bot: true, first_name: "Some bot" } }, "sent by a bot"],
+    ["posted anonymously", { from: undefined, sender_chat: { id: OUR_GROUP, type: "group" } }, "no sender"],
+  ])("doesn't save or react to scores %s", async (_, changes, reason) => {
+    await send(scoreMessage(changes));
+
+    expect(await savedScores()).toEqual([]);
+    expect(telegramCalls()).toEqual([]);
+    expect(logged("log")).toContainEqual({ event: "scores_not_saved", update_id: 701234501, reason });
+  });
+
+  it("doesn't react when saving fails, and logs why", async () => {
+    await env.DB.exec("DROP TABLE scores");
+
+    const response = await send(groupScore);
+
+    expect(response.status).toBe(200);
+    expect(telegramCalls()).toEqual([]);
+    expect(logged("error")).toEqual([
+      expect.objectContaining({ event: "db_error", error: expect.stringContaining("no such table: scores") }),
+    ]);
+  });
+
+  it("logs a rejected reaction, with the score still saved", async () => {
     mockTelegramResponses(
       Response.json({ ok: false, error_code: 400, description: "Bad Request: REACTION_INVALID" }, { status: 400 }),
     );
@@ -115,7 +207,7 @@ describe("acknowledging scores", () => {
     const response = await send(groupScore);
 
     expect(response.status).toBe(200);
-    expect(telegramCalls().map(({ method }) => method)).toEqual(["setMessageReaction", "sendMessage"]);
+    expect(await savedScores()).toHaveLength(1);
     expect(logged("error")).toEqual([
       {
         event: "telegram_error",
@@ -126,25 +218,22 @@ describe("acknowledging scores", () => {
   });
 
   it("logs network failures without failing the request", async () => {
-    mockTelegramResponses(new TypeError("Network connection lost"), new TypeError("Network connection lost"));
+    mockTelegramResponses(new TypeError("Network connection lost"));
 
     const response = await send(groupScore);
 
     expect(response.status).toBe(200);
     expect(logged("error")).toEqual([
       expect.objectContaining({ event: "telegram_error", error: "TypeError: Network connection lost" }),
-      expect.objectContaining({ event: "telegram_error", error: "TypeError: Network connection lost" }),
     ]);
   });
 
-  it("only logs what it would send when TELEGRAM_BOT_TOKEN is not set", async () => {
+  it("only logs the reaction when TELEGRAM_BOT_TOKEN is not set", async () => {
     await send(groupScore, {}, { TELEGRAM_BOT_TOKEN: "" });
 
+    expect(await savedScores()).toHaveLength(1);
     expect(telegramCalls()).toEqual([]);
-    expect(logged("warn")).toEqual([
-      expect.objectContaining({ event: "telegram_dry_run", method: "setMessageReaction" }),
-      expect.objectContaining({ event: "telegram_dry_run", method: "sendMessage" }),
-    ]);
+    expect(logged("warn")).toEqual([expect.objectContaining({ event: "telegram_dry_run", method: "setMessageReaction" })]);
   });
 });
 
@@ -169,6 +258,7 @@ describe("shaming Pinpoint and Crossclimb", () => {
         },
       },
     ]);
+    expect(await savedScores()).toEqual([]);
   });
 
   it.each([
@@ -176,38 +266,37 @@ describe("shaming Pinpoint and Crossclimb", () => {
     [901045, "Crossclimb? In this group? 👎 Aino, think about what you've done."],
     [901046, "🚨 Crossclimb detected. Aino, this is a Queens, Tango, Zip, Mini Sudoku, Patches and Wend household."],
   ])("varies the shame by message (%i)", async (messageId, expected) => {
-    const text = "Crossclimb #377 | 1:23 🪜\nlnkd.in/crossclimb.";
-    await send({ ...groupScore, message: { ...groupScore.message, message_id: messageId, text, entities: [] } });
+    await send(scoreMessage({ message_id: messageId, text: "Crossclimb #377 | 1:23 🪜\nlnkd.in/crossclimb." }));
 
-    expect(telegramCalls().find(({ method }) => method === "sendMessage")?.params).toMatchObject({ text: expected });
+    expect(replies()[0]?.params).toMatchObject({ text: expected });
   });
 
   it("shames both games at once", async () => {
     const text = "Pinpoint #512 | 2 guesses\nlnkd.in/pinpoint.\n\nCrossclimb #377 | 1:23\nlnkd.in/crossclimb.";
-    await send({ ...groupScore, message: { ...groupScore.message, message_id: 901044, text, entities: [] } });
+    await send(scoreMessage({ message_id: 901044, text }));
 
-    expect(telegramCalls().find(({ method }) => method === "sendMessage")?.params).toMatchObject({
+    expect(replies()[0]?.params).toMatchObject({
       text: "🔔 Shame! 🔔 Aino posted a Pinpoint and Crossclimb result. We don't do that here.",
     });
   });
 
-  it("gives a thumbs down even when a real score comes along, but still lists the score", async () => {
+  it("still saves a real score posted alongside, but the thumbs down wins", async () => {
     const text = `${groupPinpoint.message.text}\n\nQueens #892\n1:00 👑\nlnkd.in/queens.`;
     await send({ ...groupPinpoint, message: { ...groupPinpoint.message, text, entities: [] } });
 
-    expect(telegramCalls()).toEqual([
-      expect.objectContaining({ method: "setMessageReaction", params: expect.objectContaining({ reaction: [{ type: "emoji", emoji: "👎" }] }) }),
+    expect(await savedScores()).toEqual([expect.objectContaining({ game: "queens", puzzle_number: 892 })]);
+    expect(reactions()).toEqual([
+      expect.objectContaining({ params: expect.objectContaining({ reaction: [{ type: "emoji", emoji: "👎" }] }) }),
+    ]);
+    expect(replies()).toEqual([
       expect.objectContaining({
-        method: "sendMessage",
-        params: expect.objectContaining({
-          text: "Pinpoint? In this group? 👎 Mikko, think about what you've done.\n\nParsed Queens #892\nTime: 1:00 (60 s)\nNo hints: no\nNo redraws: no",
-        }),
+        params: expect.objectContaining({ text: "Pinpoint? In this group? 👎 Mikko, think about what you've done." }),
       }),
     ]);
   });
 
   it("doesn't shame a mere mention", async () => {
-    await send({ ...groupScore, message: { ...groupScore.message, text: "Pinpoint #512 oli helppo, en kyllä postaa", entities: [] } });
+    await send(scoreMessage({ text: "Pinpoint #512 oli helppo, en kyllä postaa" }));
 
     expect(telegramCalls()).toEqual([]);
   });
@@ -238,7 +327,8 @@ describe("chat allowlist", () => {
       },
     ]);
     expect(allLogOutput()).not.toContain(update.message.text);
-    // The other group's message is a valid score; it must still get no reaction or reply.
+    // The other group's message is a valid score; it must still not be saved or acknowledged.
+    expect(await savedScores()).toEqual([]);
     expect(telegramCalls()).toEqual([]);
   });
 

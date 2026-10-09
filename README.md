@@ -2,7 +2,7 @@
 
 Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
 
-It's a Cloudflare Worker that receives Telegram updates via webhook. Messages from our group get parsed ([src/parser.ts](src/parser.ts)), and the bot reacts to each score with 👍 and replies with what it parsed. Messages from every other chat are ignored. Storage and leaderboards come later.
+It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Messages from every other chat are ignored. Leaderboards and stats come later.
 
 ## Development
 
@@ -28,7 +28,7 @@ Locally the Worker runs without a bot token, so it only logs the reactions and r
 
 ## Deployment
 
-Merging to `main` deploys. CI runs the checks, then `wrangler deploy` uploads the Worker with its secrets, and `setWebhook` registers it with Telegram. Pending updates are never dropped.
+Merging to `main` deploys. CI runs the checks, applies D1 migrations, uploads the Worker with its secrets via `wrangler deploy`, then registers the webhook with `setWebhook`. Pending updates are never dropped.
 
 Secrets live in GitHub's `production` environment, limited to `main`:
 - `CLOUDFLARE_API_TOKEN`

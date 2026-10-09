@@ -3,13 +3,15 @@
 //
 //   node scripts/smoke-test.ts
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 
 const PORT = 8788;
 const SECRET = "smoke-test-secret";
 const WEBHOOK_URL = `http://localhost:${PORT}/telegram/webhook`;
 const STARTUP_TIMEOUT_MS = 30_000;
+
+execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--local"], { stdio: "inherit" });
 
 // --var beats .dev.vars. The empty token puts the Worker in dry-run mode, so the
 // fixture's score can't be answered in the real group whatever .dev.vars holds.

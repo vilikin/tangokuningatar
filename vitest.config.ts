@@ -1,4 +1,4 @@
-import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 const TEST_BINDINGS = {
@@ -15,11 +15,17 @@ for (const [name, value] of Object.entries(TEST_BINDINGS)) {
 
 export default defineConfig({
   plugins: [
-    cloudflareTest({
+    cloudflareTest(async () => ({
       wrangler: { configPath: "./wrangler.jsonc" },
-      // Fixed values so tests never depend on a developer's .dev.vars.
-      miniflare: { bindings: TEST_BINDINGS },
-    }),
+      miniflare: {
+        bindings: {
+          // Fixed values so tests never depend on a developer's .dev.vars.
+          ...TEST_BINDINGS,
+          // Applied to the local test database before each test (see test/setup.ts).
+          TEST_MIGRATIONS: await readD1Migrations("./migrations"),
+        },
+      },
+    })),
   ],
   test: {
     setupFiles: ["./test/setup.ts"],

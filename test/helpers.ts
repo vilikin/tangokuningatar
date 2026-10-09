@@ -70,3 +70,14 @@ export function mockTelegramResponses(...responses: (Response | Error)[]): void 
     });
   }
 }
+
+/** All rows in the scores table, oldest first, without the autoincrement ID. */
+export async function savedScores(): Promise<Record<string, unknown>[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM scores ORDER BY id").all();
+  return results.map(({ id: _, ...row }) => row);
+}
+
+export async function savedPlayers(): Promise<Record<string, unknown>[]> {
+  const { results } = await env.DB.prepare("SELECT * FROM players ORDER BY telegram_user_id").all();
+  return results;
+}
