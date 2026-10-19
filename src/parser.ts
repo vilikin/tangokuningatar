@@ -18,6 +18,10 @@ export const GAMES = {
   patches: "Patches",
   wend: "Wend",
 } as const;
+// Names the share text uses when LinkedIn is set to another language. Add new ones as they turn up.
+const LOCALIZED_NAMES: Partial<Record<GameId, string[]>> = {
+  "mini-sudoku": ["Minisudoku"], // Finnish
+};
 // Pinpoint and Crossclimb are deliberately not supported: they're never parsed
 // as scores. findShamefulGames only spots them so the poster can be shamed.
 export const SHAMEFUL_GAMES = {
@@ -37,12 +41,14 @@ export interface Score {
   noRedraws: boolean;
 }
 
-const gameIdsByName = new Map(Object.entries(GAMES).map(([id, name]) => [name.toLowerCase(), id as GameId]));
+const gameIdsByName = new Map(
+  Object.entries(GAMES).flatMap(([id, name]) =>
+    [name, ...(LOCALIZED_NAMES[id as GameId] ?? [])].map((n) => [n.toLowerCase(), id as GameId] as const),
+  ),
+);
 
 // "Mini Sudoku" may arrive with any whitespace between the words.
-const gameNamePattern = Object.values(GAMES)
-  .map((name) => name.split(" ").join("\\s+"))
-  .join("|");
+const gameNamePattern = [...gameIdsByName.keys()].map((name) => name.split(" ").join("\\s+")).join("|");
 
 // `<Game> #<number>` at the start of a line. Numbers may use thousands separators (#1,024).
 const HEADER = new RegExp(`^(${gameNamePattern})\\s*#\\s*(\\d{1,3}(?:,\\d{3})+|\\d+)(?!\\d)(.*)$`, "i");
