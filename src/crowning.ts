@@ -1,6 +1,7 @@
 // The weekly crowning: on Fridays at 16:00 Finnish time the bot posts who leads
 // the week (the Tangokuningatar) and the turtle of the week. /kuningatar and
 // /turtle show the same during the week.
+import { crowned } from "./april-fools";
 import type { BotApi } from "./bot-api";
 import { type PlayerTotal, playerTotals, slowestRelativeScore, type TurtleScore } from "./db";
 import { displayNames, formatDuration, formatWeek, joinNames } from "./format";
@@ -45,14 +46,19 @@ export async function weeklyCrowning(db: D1Database, nowSeconds: number): Promis
     return null;
   }
   const names = displayNames(totals);
-  return [crownSection(totals, names, true), turtleSection(turtle, names, true), `${formatWeek(week)}\nFull standings: /week`].join(
+  return [crownSection(crowned(totals, turtle, nowSeconds), names, true), turtleSection(turtle, names, true), `${formatWeek(week)}\nFull standings: /week`].join(
     "\n\n",
   );
 }
 
 /** The reply to /kuningatar. */
-export function formatWeekLeader(week: PuzzleWeek, totals: PlayerTotal[]): string {
-  return [crownSection(totals, displayNames(totals), false), `${formatWeek(week)}\nCrowned on Friday at 16:00.`].join("\n\n");
+export function formatWeekLeader(
+  week: PuzzleWeek,
+  totals: PlayerTotal[],
+  turtle: TurtleScore | null,
+  nowSeconds: number,
+): string {
+  return [crownSection(crowned(totals, turtle, nowSeconds), displayNames(totals), false), `${formatWeek(week)}\nCrowned on Friday at 16:00.`].join("\n\n");
 }
 
 /** The reply to /turtle. */
@@ -63,13 +69,12 @@ export function formatTurtle(week: PuzzleWeek, totals: PlayerTotal[], turtle: Tu
   ].join("\n\n");
 }
 
-/** Whoever leads /week, sharing the crown on an exact tie. */
-function crownSection(totals: PlayerTotal[], names: Map<number, string>, final: boolean): string {
-  const [leader] = totals;
+/** The crowned (see crowned()), who all have the same games and time. */
+function crownSection(queens: PlayerTotal[], names: Map<number, string>, final: boolean): string {
+  const [leader] = queens;
   if (!leader) {
     return "👑 Nobody has played this week yet. The crown is up for grabs!";
   }
-  const queens = totals.filter((total) => total.games === leader.games && total.totalSeconds === leader.totalSeconds);
   const who = joinNames(queens.map((queen) => names.get(queen.telegramUserId)!));
   const games = leader.games === 1 ? "1 game" : `${leader.games} games`;
   const result = `${formatDuration(leader.totalSeconds)} over ${games}${queens.length > 1 ? " each" : ""}.`;
