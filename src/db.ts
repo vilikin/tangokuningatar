@@ -284,6 +284,20 @@ export async function listPlayers(db: D1Database): Promise<Player[]> {
   return results;
 }
 
+/** Players who posted a score between `since` and `until`. */
+export async function activePlayers(db: D1Database, since: number, until: number): Promise<Player[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT telegram_user_id, username, first_name, last_name FROM players p
+       WHERE EXISTS (SELECT 1 FROM scores s
+                     WHERE s.telegram_user_id = p.telegram_user_id AND s.posted_at >= ?1 AND s.posted_at < ?2)
+       ORDER BY telegram_user_id`,
+    )
+    .bind(since, until)
+    .all<Player>();
+  return results;
+}
+
 /** Who posted which of these puzzles, as { telegram_user_id, game } rows. */
 export async function listPosters(
   db: D1Database,

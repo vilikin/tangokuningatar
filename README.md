@@ -14,7 +14,7 @@ The Worker also serves a Telegram Mini App at `/app` with this week's standings,
 - `/kuningatar`: who leads `/week` so far, the Tangokuningatar in waiting.
 - `/turtle`: the turtle so far: the slowest result of the week compared with the fastest time on the same puzzle, like "Tango #600 in 1:30, 3.0× the fastest 0:30". Only puzzles that more than one person played count.
 - `/mood`: the bot's mood about today. Each of today's results is compared with that player's own average on the same game over the last 4 weeks, once they have at least 3 results there. The average of those decides the mood, from 🤩 to 😭, and the best and worst results are named ([src/mood.ts](src/mood.ts)).
-- `/ennustus`: your puzzle horoscope for today: a lucky game, one to beware of, a lucky time and some advice. It's the same all puzzle day, so asking again doesn't reroll it ([src/ennustus.ts](src/ennustus.ts)).
+- `/ennustus`: your puzzle horoscope for today: a lucky game, one to beware of, a lucky time, a rival from the group (someone who posted in the last 4 weeks) and some advice. We play side by side, so the advice is about the race, not the time of day. It's the same all puzzle day, so asking again doesn't reroll it ([src/ennustus.ts](src/ennustus.ts)).
 
 The top three get medals, everyone else a 🐢. Days start when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland), so a week runs from Saturday's puzzles to Friday's. Older puzzles posted late don't count.
 

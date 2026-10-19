@@ -2,7 +2,7 @@ import type { BotApi } from "./bot-api";
 import { formatTurtle, formatWeekLeader } from "./crowning";
 import { findMissedResults, type MissedResults, toIsoDate } from "./daily-shame";
 import { type PlayerTotal, playerTotals, slowestRelativeScore } from "./db";
-import { ennustus } from "./ennustus";
+import { ennustusFor } from "./ennustus";
 import { displayNames, formatDuration, formatWeek, joinNames } from "./format";
 import { mood } from "./mood";
 import { GAMES, type GameId } from "./parser";
@@ -63,7 +63,7 @@ export async function runCommand(command: string, { db, bot, chatId, nowSeconds,
     return mood(db, nowSeconds);
   }
   if (command === "ennustus") {
-    return ennustus(nowSeconds, sender?.id, sender?.first_name);
+    return ennustusFor(db, nowSeconds, sender);
   }
   if (command === "missing") {
     const today = toIsoDate(puzzleDate(nowSeconds));
