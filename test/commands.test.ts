@@ -1,6 +1,6 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatLeaderboard, parseCommand } from "../src/commands";
+import { formatDuration, formatLeaderboard, parseCommand, rankEmoji } from "../src/commands";
 import type { PlayerTotal } from "../src/db";
 import { puzzleDayStart } from "../src/puzzle-day";
 import groupChatMessage from "./fixtures/group-chat-message.json";
@@ -70,11 +70,11 @@ describe("formatLeaderboard", () => {
     totalSeconds,
   });
 
-  it("gives medals to the top three and numbers the rest", () => {
+  it("gives medals to the top three and keycap numbers to the rest", () => {
     expect(
       formatLeaderboard([total("Aino", 3, 95), total("Mikko", 3, 130), total("Liisa", 2, 50), total("Pekka", 1, 3725)]),
     ).toBe(
-      "🏆 Today's leaderboard\n\n🥇 Aino: 1:35 (3 games)\n🥈 Mikko: 2:10 (3 games)\n🥉 Liisa: 0:50 (2 games)\n4. Pekka: 1:02:05 (1 game)",
+      "🏆 Today's leaderboard\n\n🥇 Aino: 1:35 (3 games)\n🥈 Mikko: 2:10 (3 games)\n🥉 Liisa: 0:50 (2 games)\n4️⃣ Pekka: 1:02:05 (1 game)",
     );
   });
 
@@ -92,6 +92,20 @@ describe("formatLeaderboard", () => {
 
   it("says so when nobody has played", () => {
     expect(formatLeaderboard([])).toBe("No scores today yet. Get puzzling! 🧩");
+  });
+});
+
+describe("rankEmoji", () => {
+  it.each([
+    [1, "🥇"],
+    [3, "🥉"],
+    [4, "4️⃣"],
+    [9, "9️⃣"],
+    [10, "🔟"],
+    [11, "1️⃣1️⃣"],
+    [20, "2️⃣0️⃣"],
+  ])("shows place %i as %s", (rank, expected) => {
+    expect(rankEmoji(rank)).toBe(expected);
   });
 });
 

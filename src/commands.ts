@@ -27,6 +27,14 @@ export async function runCommand(command: string, db: D1Database, nowSeconds: nu
 
 const MEDALS = ["🥇", "🥈", "🥉"];
 
+/** Medals for the top three, then keycap numbers: 4️⃣ … 🔟, 1️⃣1️⃣ … */
+export function rankEmoji(rank: number): string {
+  if (rank <= MEDALS.length) {
+    return MEDALS[rank - 1]!;
+  }
+  return rank === 10 ? "🔟" : [...String(rank)].map((digit) => `${digit}\uFE0F\u20E3`).join("");
+}
+
 export function formatLeaderboard(totals: PlayerTotal[]): string {
   if (totals.length === 0) {
     return "No scores today yet. Get puzzling! 🧩";
@@ -40,7 +48,7 @@ export function formatLeaderboard(totals: PlayerTotal[]): string {
       rank = i + 1;
     }
     const games = total.games === 1 ? "1 game" : `${total.games} games`;
-    return `${MEDALS[rank - 1] ?? `${rank}.`} ${names.get(total.telegramUserId)}: ${formatDuration(total.totalSeconds)} (${games})`;
+    return `${rankEmoji(rank)} ${names.get(total.telegramUserId)}: ${formatDuration(total.totalSeconds)} (${games})`;
   });
   return ["🏆 Today's leaderboard", "", ...lines].join("\n");
 }

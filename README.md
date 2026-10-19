@@ -6,7 +6,7 @@ It's a Cloudflare Worker that receives Telegram updates via webhook. Scores post
 
 ## Commands
 
-- `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time. "Today" starts when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland). Yesterday's puzzles posted late don't count.
+- `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time. The top three get medals, the rest keycap numbers (4️⃣, 5️⃣, …). "Today" starts when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland). Yesterday's puzzles posted late don't count.
 
 Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
 
