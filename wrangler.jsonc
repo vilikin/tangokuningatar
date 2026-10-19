@@ -15,6 +15,12 @@
     // (to a -100… number) and the Worker logs a "chat_migrated" warning with the new value.
     "ALLOWED_CHAT_ID": "-5465433776"
   },
+  // The weekly crowning, Fridays at 16:00 in Finland. Cron runs on UTC, so this is
+  // both 13:00 (summer time) and 14:00 (winter time); only the run at 16:00 Finnish
+  // time posts (see src/crowning.ts).
+  "triggers": {
+    "crons": ["0 13 * * fri", "0 14 * * fri"]
+  },
   "d1_databases": [
     {
       "binding": "DB",

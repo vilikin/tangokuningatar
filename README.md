@@ -11,8 +11,16 @@ The Worker also serves a Telegram Mini App at `/app`. For now it's a demo that o
 - `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time.
 - `/week`: the same for the whole week, all games together. A week runs Saturday to Friday.
 - `/week_queens`, `/week_tango`, `/week_zip`, `/week_mini_sudoku`, `/week_patches`, `/week_wend`: the week for one game. Typing `/week-zip` works too, but Telegram doesn't allow hyphens in the command menu.
+- `/kuningatar`: who leads `/week` so far, the Tangokuningatar in waiting.
+- `/turtle`: the turtle so far: the slowest result of the week compared with the fastest time on the same puzzle, like "Tango #600 in 1:30, 3.0× the fastest 0:30". Only puzzles that more than one person played count.
 
 The top three get medals, everyone else a 🐢. Days start when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland), so a week runs from Saturday's puzzles to Friday's. Older puzzles posted late don't count.
+
+## Weekly crowning
+
+Every Friday at 16:00 Finnish time, the bot posts the Tangokuningatar of the week (whoever leads `/week`) and the turtle of the week, in one message ([src/crowning.ts](src/crowning.ts)). Friday's puzzles posted after 16:00 don't count towards it, though they still show up in `/week` until Saturday's puzzles come out. Weeks without scores get no post.
+
+Cloudflare cron triggers run on UTC, so [wrangler.jsonc](wrangler.jsonc) schedules both 13:00 and 14:00 UTC on Fridays, and only the run that's 16:00 in Finland posts. To try it locally, run `npx wrangler dev --test-scheduled` and open `http://localhost:8787/__scheduled?cron=0+13+*+*+fri`. It only posts when it's actually Friday 16:00 in Finland, and even then only logs the message, since there's no bot token locally.
 
 Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
 

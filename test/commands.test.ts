@@ -1,7 +1,8 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatLeaderboard, parseCommand } from "../src/commands";
+import { formatLeaderboard, parseCommand } from "../src/commands";
 import type { PlayerTotal } from "../src/db";
+import { formatDuration } from "../src/format";
 import { puzzleDayStart, puzzleWeek } from "../src/puzzle-day";
 import groupChatMessage from "./fixtures/group-chat-message.json";
 import groupScore from "./fixtures/group-score-message.json";

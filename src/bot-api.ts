@@ -17,6 +17,7 @@ export class BotApiError extends Error {
 export interface BotApi {
   setMessageReaction(chatId: number, messageId: number, emoji: string): Promise<void>;
   replyTo(chatId: number, messageId: number, text: string): Promise<void>;
+  sendMessage(chatId: number, text: string): Promise<void>;
 }
 
 /**
@@ -42,6 +43,9 @@ export function createBotApi(token: string | undefined): BotApi {
         reply_parameters: { message_id: messageId },
         link_preview_options: { is_disabled: true },
       });
+    },
+    async sendMessage(chatId, text) {
+      await call("sendMessage", { chat_id: chatId, text, link_preview_options: { is_disabled: true } });
     },
   };
 }

@@ -1,4 +1,4 @@
-import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
+import { createExecutionContext, createScheduledController, env, waitOnExecutionContext } from "cloudflare:test";
 import { vi } from "vitest";
 import worker from "../src/index";
 
@@ -109,4 +109,12 @@ export async function get(path: string, headers: HeadersInit = {}, envOverrides:
   const response = await worker.fetch(request as Parameters<typeof worker.fetch>[0], { ...env, ...envOverrides }, ctx);
   await waitOnExecutionContext(ctx);
   return response;
+}
+
+/** Fires the Worker's cron trigger as if at `iso`, and waits for the background work. */
+export async function runScheduled(iso: string, cron = "0 13 * * fri", envOverrides: Partial<Env> = {}): Promise<void> {
+  const controller = createScheduledController({ scheduledTime: Date.parse(iso), cron });
+  const ctx = createExecutionContext();
+  await worker.scheduled(controller, { ...env, ...envOverrides }, ctx);
+  await waitOnExecutionContext(ctx);
 }
