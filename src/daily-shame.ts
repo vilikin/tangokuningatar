@@ -38,27 +38,66 @@ export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<v
   // The day whose puzzles closed at the latest reset.
   const puzzleDay = toIsoDate(puzzleDate(puzzleDayStart(nowSeconds) - 1));
 
-  const firstPosts = await listPuzzleFirstPosts(env.DB, nowSeconds - ANCHOR_LOOKBACK_DAYS * SECONDS_PER_DAY);
-  const puzzleNumbers = puzzleNumbersFor(puzzleDay, firstPosts);
-  const posters = await listPosters(
-    env.DB,
-    Object.entries(puzzleNumbers).map(([game, puzzleNumber]) => ({ game, puzzleNumber })),
-  );
-  const posted = new Set(posters.map(({ telegram_user_id, game }) => `${telegram_user_id}:${game}`));
-
-  const gameIds = Object.keys(GAMES) as GameId[];
+  const { puzzleNumbers, players } = await findMissedResults(env.DB, bot, chatId, puzzleDay, nowSeconds);
   const shamed: number[] = [];
-  for (const player of await listPlayers(env.DB)) {
-    const missed = gameIds.filter((game) => !posted.has(`${player.telegram_user_id}:${game}`));
-    if (missed.length === 0) {
-      continue;
-    }
-    if (await shamePlayer(env, bot, chatId, player, puzzleDay, missed, now)) {
+  for (const { player, missed } of players) {
+    if (await shamePlayer(env, bot, chatId, player, puzzleDay, missed, nowSeconds)) {
       shamed.push(player.telegram_user_id);
     }
   }
 
   console.log({ event: "daily_shame_done", puzzle_day: puzzleDay, puzzle_numbers: puzzleNumbers, shamed });
+}
+
+export interface MissedResults {
+  /** The day's puzzle number per game, for games anyone has posted lately. */
+  puzzleNumbers: Partial<Record<GameId, number>>;
+  /** Players missing at least one game, with the games they're missing. */
+  players: { player: Player; missed: GameId[] }[];
+}
+
+/**
+ * Everyone who has posted a score at some point, is in the group, and hasn't
+ * posted all six games for `puzzleDay` ('YYYY-MM-DD'), with the games they're
+ * missing. Used by the daily shame and by /missing.
+ */
+export async function findMissedResults(
+  db: D1Database,
+  bot: BotApi,
+  chatId: number,
+  puzzleDay: string,
+  nowSeconds: number,
+): Promise<MissedResults> {
+  const firstPosts = await listPuzzleFirstPosts(db, nowSeconds - ANCHOR_LOOKBACK_DAYS * SECONDS_PER_DAY);
+  const puzzleNumbers = puzzleNumbersFor(puzzleDay, firstPosts);
+  const posters = await listPosters(
+    db,
+    Object.entries(puzzleNumbers).map(([game, puzzleNumber]) => ({ game, puzzleNumber })),
+  );
+  const posted = new Set(posters.map(({ telegram_user_id, game }) => `${telegram_user_id}:${game}`));
+
+  const gameIds = Object.keys(GAMES) as GameId[];
+  const players: MissedResults["players"] = [];
+  for (const player of await listPlayers(db)) {
+    const missed = gameIds.filter((game) => !posted.has(`${player.telegram_user_id}:${game}`));
+    if (missed.length > 0 && (await isInGroup(bot, chatId, player.telegram_user_id))) {
+      players.push({ player, missed });
+    }
+  }
+  return { puzzleNumbers, players };
+}
+
+async function isInGroup(bot: BotApi, chatId: number, userId: number): Promise<boolean> {
+  try {
+    if (await bot.isChatMember(chatId, userId)) {
+      return true;
+    }
+    console.log({ event: "player_skipped", user_id: userId, reason: "not in the group" });
+  } catch (error) {
+    // E.g. "user not found" for someone who deleted their account.
+    console.warn({ event: "player_skipped", user_id: userId, reason: "membership check failed", error: String(error) });
+  }
+  return false;
 }
 
 async function shamePlayer(
@@ -68,21 +107,10 @@ async function shamePlayer(
   player: Player,
   puzzleDay: string,
   missed: GameId[],
-  now: Date,
+  nowSeconds: number,
 ): Promise<boolean> {
   const userId = player.telegram_user_id;
-  try {
-    if (!(await bot.isChatMember(chatId, userId))) {
-      console.log({ event: "shame_skipped", user_id: userId, reason: "not in the group" });
-      return false;
-    }
-  } catch (error) {
-    // E.g. "user not found" for someone who deleted their account.
-    console.warn({ event: "shame_skipped", user_id: userId, reason: "membership check failed", error: String(error) });
-    return false;
-  }
-
-  if (!(await recordShame(env.DB, userId, puzzleDay, missed, Math.floor(now.getTime() / 1000)))) {
+  if (!(await recordShame(env.DB, userId, puzzleDay, missed, nowSeconds))) {
     console.log({ event: "shame_skipped", user_id: userId, reason: "already shamed for this day" });
     return false;
   }
@@ -151,6 +179,6 @@ function dayIndex(date: Date): number {
   return Math.round(date.getTime() / (SECONDS_PER_DAY * 1000));
 }
 
-function toIsoDate(date: Date): string {
+export function toIsoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }

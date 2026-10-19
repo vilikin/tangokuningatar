@@ -96,7 +96,7 @@ describe("daily shame", () => {
     ]);
     expect((shamePosts()[0]!.params as { caption: string }).caption).toContain("Tango, Mini Sudoku, Patches or Wend");
     expect(logged("log")).toContainEqual(
-      expect.objectContaining({ event: "shame_skipped", user_id: DORA, reason: "not in the group" }),
+      expect.objectContaining({ event: "player_skipped", user_id: DORA, reason: "not in the group" }),
     );
     expect(logged("log")).toContainEqual({
       event: "daily_shame_done",
@@ -184,7 +184,7 @@ describe("daily shame", () => {
 
     expect(shamePosts()).toEqual([]);
     expect(logged("warn")).toContainEqual(
-      expect.objectContaining({ event: "shame_skipped", user_id: CECILIA, reason: "membership check failed" }),
+      expect.objectContaining({ event: "player_skipped", user_id: CECILIA, reason: "membership check failed" }),
     );
   });
 
