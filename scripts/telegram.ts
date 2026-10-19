@@ -16,6 +16,8 @@ const WEEK_GAMES = { queens: "Queens", tango: "Tango", zip: "Zip", mini_sudoku: 
 const COMMANDS = [
   { command: "today", description: "Today's leaderboard" },
   { command: "week", description: "This week's leaderboard, all games (Sat–Fri)" },
+  { command: "kuningatar", description: "Who leads the week so far (crowned Fridays at 16:00)" },
+  { command: "turtle", description: "The slowest result of the week, compared with the fastest" },
   ...Object.entries(WEEK_GAMES).map(([id, name]) => ({
     command: `week_${id}`,
     description: `This week's ${name} leaderboard (Sat–Fri)`,

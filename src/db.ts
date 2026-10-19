@@ -66,6 +66,14 @@ export async function saveScores(db: D1Database, message: Message, sender: User,
   };
 }
 
+// A score counts if it was posted after ?1 and its puzzle number is past anything
+// posted for that game before then. That leaves out an older puzzle someone posts late.
+const COUNTED_SINCE = `s.posted_at >= ?1
+         AND s.puzzle_number > COALESCE(
+               (SELECT MAX(earlier.puzzle_number) FROM scores earlier
+                WHERE earlier.game = s.game AND earlier.posted_at < ?1),
+               -1)`;
+
 export interface PlayerTotal {
   telegramUserId: number;
   firstName: string;
@@ -78,10 +86,6 @@ export interface PlayerTotal {
  * Each player's combined time over the puzzles released since `since` (of one
  * game, or all of them), best first: more games played ranks higher, then lower
  * total time.
- *
- * A puzzle counts if it was posted after `since` and its number is past anything
- * posted for that game before then. That leaves out an older puzzle someone
- * posts late.
  */
 export async function playerTotals(db: D1Database, since: number, game: GameId | null = null): Promise<PlayerTotal[]> {
   const { results } = await db
@@ -93,18 +97,55 @@ export async function playerTotals(db: D1Database, since: number, game: GameId |
               SUM(s.time_seconds) AS totalSeconds
        FROM scores s
        JOIN players p USING (telegram_user_id)
-       WHERE s.posted_at >= ?1
+       WHERE ${COUNTED_SINCE}
          AND (?2 IS NULL OR s.game = ?2)
-         AND s.puzzle_number > COALESCE(
-               (SELECT MAX(earlier.puzzle_number) FROM scores earlier
-                WHERE earlier.game = s.game AND earlier.posted_at < ?1),
-               -1)
        GROUP BY s.telegram_user_id
        ORDER BY games DESC, totalSeconds ASC, MIN(s.posted_at) ASC`,
     )
     .bind(since, game)
     .all<PlayerTotal>();
   return results;
+}
+
+export interface TurtleScore {
+  telegramUserId: number;
+  game: GameId;
+  puzzleNumber: number;
+  timeSeconds: number;
+  /** The fastest time on the same puzzle, and who posted it first. */
+  bestSeconds: number;
+  bestUserId: number;
+}
+
+/**
+ * The slowest result compared with the fastest time on the same puzzle, among the
+ * puzzles released since `since` that more than one person played. Null if
+ * nobody was slower than someone else.
+ */
+export async function slowestRelativeScore(db: D1Database, since: number): Promise<TurtleScore | null> {
+  return db
+    .prepare(
+      `WITH counted AS (
+         SELECT s.telegram_user_id, s.game, s.puzzle_number, s.time_seconds, s.posted_at,
+                MIN(s.time_seconds) OVER puzzle AS best_seconds,
+                FIRST_VALUE(s.telegram_user_id) OVER (puzzle ORDER BY s.time_seconds, s.posted_at) AS best_user_id
+         FROM scores s
+         WHERE ${COUNTED_SINCE}
+         WINDOW puzzle AS (PARTITION BY s.game, s.puzzle_number)
+       )
+       SELECT telegram_user_id AS telegramUserId,
+              game,
+              puzzle_number    AS puzzleNumber,
+              time_seconds     AS timeSeconds,
+              best_seconds     AS bestSeconds,
+              best_user_id     AS bestUserId
+       FROM counted
+       WHERE time_seconds > best_seconds
+       ORDER BY CAST(time_seconds AS REAL) / MAX(best_seconds, 1) DESC, time_seconds DESC, posted_at ASC
+       LIMIT 1`,
+    )
+    .bind(since)
+    .first<TurtleScore>();
 }
 
 /** Whether this person has ever posted a score in our group. */

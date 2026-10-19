@@ -1,4 +1,6 @@
-import { type PlayerTotal, playerTotals } from "./db";
+import { formatTurtle, formatWeekLeader } from "./crowning";
+import { type PlayerTotal, playerTotals, slowestRelativeScore } from "./db";
+import { displayNames, formatDuration, formatWeek } from "./format";
 import { GAMES, type GameId } from "./parser";
 import { puzzleDayStart, puzzleWeek, type PuzzleWeek } from "./puzzle-day";
 
@@ -34,6 +36,15 @@ export async function runCommand(command: string, db: D1Database, nowSeconds: nu
     const week = puzzleWeek(nowSeconds);
     return formatLeaderboard(weekHeader("all games", week), await playerTotals(db, week.start));
   }
+  if (command === "kuningatar") {
+    const week = puzzleWeek(nowSeconds);
+    return formatWeekLeader(week, await playerTotals(db, week.start));
+  }
+  if (command === "turtle") {
+    const week = puzzleWeek(nowSeconds);
+    const [totals, turtle] = await Promise.all([playerTotals(db, week.start), slowestRelativeScore(db, week.start)]);
+    return formatTurtle(week, totals, turtle);
+  }
   const game = WEEK_GAME_COMMANDS.get(command);
   if (game) {
     const week = puzzleWeek(nowSeconds);
@@ -43,12 +54,7 @@ export async function runCommand(command: string, db: D1Database, nowSeconds: nu
 }
 
 function weekHeader(what: string, week: PuzzleWeek): string {
-  return `🏆 This week's leaderboard: ${what}\nWeek is Sat–Fri: ${formatDate("Sat", week.saturday)} – ${formatDate("Fri", week.friday)}`;
-}
-
-/** Sat 17.10. */
-function formatDate(weekday: string, date: Date): string {
-  return `${weekday} ${date.getUTCDate()}.${date.getUTCMonth() + 1}.`;
+  return `🏆 This week's leaderboard: ${what}\n${formatWeek(week)}`;
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"];
@@ -82,26 +88,4 @@ export function rankTotals(totals: PlayerTotal[]): Standing[] {
     }
     return { rank, name: names.get(total.telegramUserId)!, total };
   });
-}
-
-/** First names, with the last name added for players who share one. */
-function displayNames(totals: PlayerTotal[]): Map<number, string> {
-  const counts = new Map<string, number>();
-  for (const { firstName } of totals) {
-    counts.set(firstName, (counts.get(firstName) ?? 0) + 1);
-  }
-  return new Map(
-    totals.map(({ telegramUserId, firstName, lastName }) => [
-      telegramUserId,
-      counts.get(firstName)! > 1 && lastName ? `${firstName} ${lastName}` : firstName,
-    ]),
-  );
-}
-
-/** 1:05, or 1:02:05 past an hour. */
-export function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = String(totalSeconds % 60).padStart(2, "0");
-  return hours > 0 ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
 }

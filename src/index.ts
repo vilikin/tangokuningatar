@@ -1,5 +1,6 @@
 import { isValidSecret } from "./auth";
 import { createBotApi } from "./bot-api";
+import { postWeeklyCrowning } from "./crowning";
 import { handleUpdate } from "./handler";
 import { PAGE_PATH, servePage, serveWeek, WEEK_PATH } from "./mini-app";
 import type { Update } from "./telegram";
@@ -45,6 +46,13 @@ export default {
     // in the background, so a slow Bot API call can't trigger a redelivery.
     ctx.waitUntil(handleUpdate(update, env, createBotApi(env.TELEGRAM_BOT_TOKEN)).catch(logProcessingError));
     return new Response(null, { status: 200 });
+  },
+
+  // The only cron trigger is the weekly crowning (see wrangler.jsonc).
+  async scheduled(controller, env, ctx): Promise<void> {
+    ctx.waitUntil(
+      postWeeklyCrowning(controller.scheduledTime, env, createBotApi(env.TELEGRAM_BOT_TOKEN)).catch(logProcessingError),
+    );
   },
 } satisfies ExportedHandler<Env>;
 

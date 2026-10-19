@@ -1,6 +1,7 @@
 import type { BotApi } from "./bot-api";
 import { parseCommand, runCommand } from "./commands";
 import { saveScores, type SaveResult } from "./db";
+import { joinNames } from "./format";
 import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
@@ -176,10 +177,6 @@ const SHAME_LINES: ((name: string, games: string) => string)[] = [
 export function formatShame(games: ShamefulGameId[], message: Message): string {
   const line = SHAME_LINES[message.message_id % SHAME_LINES.length]!;
   return line(message.from?.first_name ?? "Someone", joinNames(games.map((game) => SHAMEFUL_GAMES[game])));
-}
-
-function joinNames(names: string[]): string {
-  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
 }
 
 function handleMyChatMember(update: Update, change: ChatMemberUpdated, allowedChatId: string): void {

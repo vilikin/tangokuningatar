@@ -5,8 +5,9 @@
 // it to the API, which only answers once the signature checks out.
 
 import { verifyInitData } from "./auth";
-import { formatDuration, rankTotals } from "./commands";
+import { rankTotals } from "./commands";
 import { isPlayer, playerTotals } from "./db";
+import { formatDuration } from "./format";
 import PAGE_HTML from "./mini-app.html";
 import { GAMES, type GameId } from "./parser";
 import { puzzleDayStart, puzzleWeek } from "./puzzle-day";
