@@ -192,7 +192,7 @@ describe("daily shame", () => {
     await addPlayer(CECILIA, "<Ceci & co>");
     mockMembers();
 
-    await runDailyShame(AFTER_RESET, env, bot);
+    await runDailyShame(AFTER_RESET, { ...env, SHAME_GIF: "" }, bot);
 
     expect(shamePosts()).toEqual([
       {
@@ -249,6 +249,18 @@ describe("daily shame", () => {
     await waitOnExecutionContext(ctx);
 
     expect(shamePosts()).toHaveLength(1);
+  });
+
+  it("isn't run by the weekly crowning's cron triggers", async () => {
+    await addPlayer(CECILIA, "Cecilia");
+    mockMembers();
+
+    const ctx = createExecutionContext();
+    await worker.scheduled(createScheduledController({ scheduledTime: AFTER_RESET, cron: "0 13 * * fri" }), withGif, ctx);
+    await waitOnExecutionContext(ctx);
+
+    expect(telegramCalls()).toEqual([]);
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "weekly_crowning_skipped" }));
   });
 });
 
