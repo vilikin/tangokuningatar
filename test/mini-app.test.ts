@@ -93,11 +93,11 @@ describe("week API", () => {
     expect(body.week).toEqual({ saturday: "17.10.", friday: "23.10.", day: 3 });
     expect(body.boards.map(({ id, name }) => [id, name])).toEqual([
       ["all", "All games"],
-      ["queens", "Queens"],
-      ["tango", "Tango"],
       ["zip", "Zip"],
-      ["mini-sudoku", "Mini Sudoku"],
       ["patches", "Patches"],
+      ["mini-sudoku", "Mini Sudoku"],
+      ["tango", "Tango"],
+      ["queens", "Queens"],
       ["wend", "Wend"],
     ]);
     const board = (id: string) => body.boards.find((b) => b.id === id)!.standings;

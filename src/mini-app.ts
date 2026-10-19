@@ -17,6 +17,9 @@ export const WEEK_PATH = "/api/week";
 
 const DAY_SECONDS = 86_400;
 
+// The order LinkedIn lists its games in.
+const GAME_ORDER: GameId[] = ["zip", "patches", "mini-sudoku", "tango", "queens", "wend"];
+
 // Keeps the page out of search engines, and its URL out of other sites' logs.
 const PAGE_HEADERS = {
   "X-Robots-Tag": "noindex, nofollow",
@@ -54,7 +57,7 @@ export async function serveWeek(request: Request, env: Env): Promise<Response> {
   const week = puzzleWeek(now);
   const boards: { id: GameId | "all"; name: string }[] = [
     { id: "all", name: "All games" },
-    ...(Object.entries(GAMES) as [GameId, string][]).map(([id, name]) => ({ id, name })),
+    ...GAME_ORDER.map((id) => ({ id, name: GAMES[id] })),
   ];
   const totals = await Promise.all(boards.map(({ id }) => playerTotals(env.DB, week.start, id === "all" ? null : id)));
 
