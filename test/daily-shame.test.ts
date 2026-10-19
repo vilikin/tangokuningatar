@@ -94,7 +94,9 @@ describe("daily shame", () => {
         },
       },
     ]);
-    expect((shamePosts()[0]!.params as { caption: string }).caption).toContain("Tango, Mini Sudoku, Patches or Wend");
+    expect((shamePosts()[0]!.params as { caption: string }).caption).toBe(
+      `<a href="tg://user?id=${BERTTA}">Bertta</a> did not play Tango, Mini Sudoku, Patches and Wend! What a shame!`,
+    );
     expect(logged("log")).toContainEqual(
       expect.objectContaining({ event: "player_skipped", user_id: DORA, reason: "not in the group" }),
     );
@@ -146,7 +148,7 @@ describe("daily shame", () => {
     expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_done", shamed: [] }));
   });
 
-  it("shames for a game nobody posted", async () => {
+  it("shames someone who played 5 of the 6 games, even when nobody posted the sixth", async () => {
     await addPlayer(AINO, "Aino");
     for (const [game, number] of Object.entries(PUZZLES)) {
       if (game !== "wend") {
@@ -158,7 +160,9 @@ describe("daily shame", () => {
     await runDailyShame(AFTER_RESET, withGif, bot);
 
     expect(shamePosts()).toHaveLength(1);
-    expect((shamePosts()[0]!.params as { caption: string }).caption).toContain("Wend");
+    expect((shamePosts()[0]!.params as { caption: string }).caption).toBe(
+      `<a href="tg://user?id=${AINO}">Aino</a> did not play Wend! What a shame!`,
+    );
   });
 
   it("counts restricted users who are still in the group as members", async () => {

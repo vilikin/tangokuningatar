@@ -1,5 +1,6 @@
 import type { BotApi } from "./bot-api";
 import { listPlayers, listPosters, listPuzzleFirstPosts, type Player, recordShame } from "./db";
+import { joinNames } from "./format";
 import { GAMES, type GameId } from "./parser";
 import { puzzleDate, puzzleDayStart } from "./puzzle-day";
 
@@ -125,11 +126,7 @@ async function shamePlayer(
   }
 }
 
-const SHAME_LINES: ((mention: string, games: string) => string)[] = [
-  (mention, games) => `🔔 Shame! 🔔 ${mention} didn't post ${games} yesterday.`,
-  (mention, games) => `${mention}, where were your ${games} results? The group noticed. 👀`,
-  (mention, games) => `🚨 Missing results: ${games}. ${mention}, explain yourself.`,
-];
+const MISSED_GAMES_LINE = (mention: string, games: string) => `${mention} did not play ${games}! What a shame!`;
 const NOTHING_POSTED_LINE = (mention: string) => `🔔 Shame! 🔔 ${mention} didn't post a single result yesterday. Not one.`;
 
 /** HTML caption that mentions (and notifies) the player, even one without a username. */
@@ -138,11 +135,7 @@ export function formatMissedShame(player: Player, missed: GameId[]): string {
   if (missed.length === Object.keys(GAMES).length) {
     return NOTHING_POSTED_LINE(mention);
   }
-  const names = missed.map((game) => GAMES[game]);
-  const games = names.length > 1 ? `${names.slice(0, -1).join(", ")} or ${names.at(-1)}` : names[0]!;
-  // Varies between people and days, predictable in tests.
-  const line = SHAME_LINES[(player.telegram_user_id + missed.length) % SHAME_LINES.length]!;
-  return line(mention, games);
+  return MISSED_GAMES_LINE(mention, joinNames(missed.map((game) => GAMES[game])));
 }
 
 function escapeHtml(text: string): string {
