@@ -122,23 +122,38 @@ describe("saving scores", () => {
     expect(await savedPlayers()).toEqual([expect.objectContaining({ first_name: "Mikko", last_name: null, username: null })]);
   });
 
-  it("keeps the first result when the same puzzle is posted again", async () => {
+  it("keeps the first result when the same puzzle is posted again, and reacts to the repost with 🤨", async () => {
     await send(groupScore);
     const repost = groupScore.message.text.replace("0:29", "0:11");
     await send({ ...scoreMessage({ message_id: 901060, date: groupScore.message.date + 600, text: repost }), update_id: 701234560 });
 
     expect(await savedScores()).toEqual([expect.objectContaining({ time_seconds: 29, message_id: 901042 })]);
     expect(logged("log")).toContainEqual(expect.objectContaining({ event: "scores_saved", saved: 0, duplicates: 1 }));
-    // Still acknowledged: it's on record.
-    expect(reactions()).toHaveLength(2);
+    expect(reactions()).toEqual([
+      expect.objectContaining({ params: expect.objectContaining({ message_id: 901042, reaction: [{ type: "emoji", emoji: "👍" }] }) }),
+      expect.objectContaining({ params: expect.objectContaining({ message_id: 901060, reaction: [{ type: "emoji", emoji: "🤨" }] }) }),
+    ]);
   });
 
-  it("doesn't duplicate anything when Telegram redelivers an update", async () => {
+  it("gives a 👍 when a message has a new score alongside a repost", async () => {
+    await send(groupScore);
+    const text = `${groupScore.message.text}\n\nZip #571\n0:37 🏁\nlnkd.in/zip.`;
+    await send({ ...scoreMessage({ message_id: 901061, text }), update_id: 701234561 });
+
+    expect(await savedScores()).toHaveLength(2);
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "scores_saved", saved: 1, duplicates: 1 }));
+    expect(reactions().at(-1)).toEqual(expect.objectContaining({ params: expect.objectContaining({ reaction: [{ type: "emoji", emoji: "👍" }] }) }));
+  });
+
+  it("doesn't duplicate anything when Telegram redelivers an update, and keeps the 👍", async () => {
     await send(groupScore);
     await send(groupScore);
 
     expect(await savedScores()).toHaveLength(1);
     expect(await savedPlayers()).toHaveLength(1);
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "scores_saved", saved: 0, duplicates: 0 }));
+    const thumbsUp = expect.objectContaining({ params: expect.objectContaining({ reaction: [{ type: "emoji", emoji: "👍" }] }) });
+    expect(reactions()).toEqual([thumbsUp, thumbsUp]);
   });
 
   it("refreshes the player's names from newer messages only", async () => {

@@ -1,19 +1,21 @@
 import type { BotApi } from "./bot-api";
 import { parseCommand, runCommand } from "./commands";
-import { saveScores } from "./db";
+import { saveScores, type SaveResult } from "./db";
 import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
 // Must be among the emoji Telegram allows bots to react with.
 export const SCORE_REACTION = "👍";
+// The sender already had a result for that puzzle, so this one doesn't count.
+export const DUPLICATE_REACTION = "🤨";
 export const SHAME_REACTION = "👎";
 
 /**
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
- * in full, and only scores posted there are saved and get a 👍. Pinpoint and
- * Crossclimb results get a 👎 and a shaming reply. Anything else gets a single
- * metadata line without message content. Commands (e.g. /today) are answered
- * with a reply in our group only.
+ * in full, and only scores posted there are saved and get a 👍, or a 🤨 if they
+ * were all posted before. Pinpoint and Crossclimb results get a 👎 and a
+ * shaming reply. Anything else gets a single metadata line without message
+ * content. Commands (e.g. /today) are answered with a reply in our group only.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
   const allowedChatId = env.ALLOWED_CHAT_ID?.trim();
@@ -86,7 +88,7 @@ async function handleMessage(
     raw: JSON.stringify(update),
   });
 
-  const stored = scores.length > 0 && (await storeScores(update, message, scores, db));
+  const stored = scores.length > 0 ? await storeScores(update, message, scores, db) : null;
 
   // A bot gets one reaction per message, so shame wins over a score posted alongside
   // (which is still saved).
@@ -96,7 +98,9 @@ async function handleMessage(
       bot.replyTo(message.chat.id, message.message_id, formatShame(shamefulGames, message)),
     ]);
   } else if (stored) {
-    await settle(update, [bot.setMessageReaction(message.chat.id, message.message_id, SCORE_REACTION)]);
+    // 👍 as long as something in the message counts.
+    const reaction = stored.duplicates === scores.length ? DUPLICATE_REACTION : SCORE_REACTION;
+    await settle(update, [bot.setMessageReaction(message.chat.id, message.message_id, reaction)]);
   }
 }
 
@@ -121,8 +125,13 @@ async function handleCommand(update: Update, message: Message, command: string, 
   }
 }
 
-/** Returns whether the scores are in the database (newly saved or already there). */
-async function storeScores(update: Update, message: Message, scores: Score[], db: D1Database): Promise<boolean> {
+/** Returns what was saved, or null if the scores weren't stored. */
+async function storeScores(
+  update: Update,
+  message: Message,
+  scores: Score[],
+  db: D1Database,
+): Promise<SaveResult | null> {
   const sender = message.from;
   const skipReason = !sender
     ? "no sender"
@@ -133,16 +142,16 @@ async function storeScores(update: Update, message: Message, scores: Score[], db
         : null;
   if (!sender || skipReason) {
     console.log({ event: "scores_not_saved", update_id: update.update_id, reason: skipReason });
-    return false;
+    return null;
   }
 
   try {
-    const { saved, duplicates } = await saveScores(db, message, sender, scores);
-    console.log({ event: "scores_saved", update_id: update.update_id, from_id: sender.id, saved, duplicates });
-    return true;
+    const result = await saveScores(db, message, sender, scores);
+    console.log({ event: "scores_saved", update_id: update.update_id, from_id: sender.id, ...result });
+    return result;
   } catch (error) {
     console.error({ event: "db_error", update_id: update.update_id, error: String(error) });
-    return false;
+    return null;
   }
 }
 
