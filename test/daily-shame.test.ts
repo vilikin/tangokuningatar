@@ -6,8 +6,8 @@ import worker from "../src/index";
 import { logged, telegramCalls } from "./helpers";
 
 const OUR_GROUP = -5465433776;
-// 00:05 Pacific (summer time) on 20 October: the 19 October puzzles just closed.
-const AFTER_RESET = new Date("2026-10-20T07:05:00Z");
+// 10:00 in Finland (00:00 Pacific) on 20 October: the 19 October puzzles just closed.
+const AFTER_RESET = new Date("2026-10-20T07:00:00Z");
 // Noon Pacific on 19 October.
 const ON_THE_DAY = Date.parse("2026-10-19T19:00:00Z") / 1000;
 const DAY = 86_400;
@@ -207,7 +207,7 @@ describe("daily shame", () => {
     ]);
   });
 
-  // The cron fires at 07:05 and 08:05 UTC. Finland is UTC+3 in summer time and UTC+2 in winter.
+  // The cron fires at 07:00 and 08:00 UTC. Finland is UTC+3 in summer time and UTC+2 in winter.
   describe("timing in Finland", () => {
     async function shamedDayAt(utc: string): Promise<unknown> {
       await addPlayer(CECILIA, "Cecilia");
@@ -216,37 +216,27 @@ describe("daily shame", () => {
       return logged("log").find(({ event }) => event === "daily_shame_done")?.puzzle_day ?? null;
     }
 
+    // Finland changes its clocks on the last Sunday of March and October, the US on
+    // the second Sunday of March and the first Sunday of November. In between, the
+    // puzzles reset at 09:00 in Finland, but the shame still waits for 10:00.
     it.each([
-      ["summer time in both", "2026-10-20T07:05:00Z", "10:05", "2026-10-19"],
-      ["winter time in both", "2026-12-10T08:05:00Z", "10:05", "2026-12-09"],
-    ])("shames at 10:05 with %s", async (_, utc, _helsinki, puzzleDay) => {
+      ["summer time", "2026-10-20T07:00:00Z", "2026-10-19"],
+      ["winter time", "2026-12-10T08:00:00Z", "2026-12-09"],
+      ["late October, when the puzzles reset at 09:00", "2026-10-28T08:00:00Z", "2026-10-27"],
+      ["March, when the puzzles reset at 09:00", "2027-03-20T08:00:00Z", "2027-03-19"],
+    ])("shames at 10:00 in %s", async (_, utc, puzzleDay) => {
       expect(await shamedDayAt(utc)).toBe(puzzleDay);
     });
 
     it.each([
-      ["summer time in both", "2026-10-20T08:05:00Z", "11:05"],
-      ["winter time in both", "2026-12-10T07:05:00Z", "09:05, before the reset"],
-    ])("stays quiet on the other run with %s (%s)", async (_, utc) => {
+      ["11:00 in summer time", "2026-10-20T08:00:00Z"],
+      ["09:00 in winter time", "2026-12-10T07:00:00Z"],
+      ["09:00 in late October, though the puzzles just reset", "2026-10-28T07:00:00Z"],
+      ["09:00 in March, though the puzzles just reset", "2027-03-20T07:00:00Z"],
+    ])("stays quiet at %s", async (_, utc) => {
       expect(await shamedDayAt(utc)).toBeNull();
       expect(telegramCalls()).toEqual([]);
       expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_skipped" }));
-    });
-
-    // Finland changes its clocks on the last Sunday of March and October, the US on
-    // the second Sunday of March and the first Sunday of November. In between, the
-    // puzzles reset at 09:00 in Finland, so that's when the shame goes out.
-    it.each([
-      ["late October (Finland already on winter time)", "2026-10-28T07:05:00Z", "2026-10-27"],
-      ["March (US already on summer time)", "2027-03-20T07:05:00Z", "2027-03-19"],
-    ])("shames at 09:05 in %s, right after that day's earlier reset", async (_, utc, puzzleDay) => {
-      expect(await shamedDayAt(utc)).toBe(puzzleDay);
-    });
-
-    it.each([
-      ["late October", "2026-10-28T08:05:00Z"],
-      ["March", "2027-03-20T08:05:00Z"],
-    ])("doesn't shame again at 10:05 in %s", async (_, utc) => {
-      expect(await shamedDayAt(utc)).toBeNull();
     });
   });
 
@@ -255,7 +245,7 @@ describe("daily shame", () => {
     mockMembers();
 
     const ctx = createExecutionContext();
-    await worker.scheduled(createScheduledController({ scheduledTime: AFTER_RESET, cron: "5 7,8 * * *" }), withGif, ctx);
+    await worker.scheduled(createScheduledController({ scheduledTime: AFTER_RESET, cron: "0 7,8 * * *" }), withGif, ctx);
     await waitOnExecutionContext(ctx);
 
     expect(shamePosts()).toHaveLength(1);

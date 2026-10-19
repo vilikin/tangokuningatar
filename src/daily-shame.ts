@@ -3,11 +3,15 @@ import { listPlayers, listPosters, listPuzzleFirstPosts, type Player, recordSham
 import { GAMES, type GameId } from "./parser";
 import { puzzleDate, puzzleDayStart } from "./puzzle-day";
 
-// The shame goes out when the puzzles reset (see puzzle-day.ts): 10:00 in Finland,
-// or 09:00 for the few weeks a year when only Finland or only the US has changed
-// its clocks. The cron fires at both 07:05 and 08:05 UTC, and only the run within
-// an hour of the reset does anything.
-const MAX_SECONDS_AFTER_RESET = 3_600;
+// The shame goes out at 10:00 Finnish time. That's when the puzzles reset (see
+// puzzle-day.ts), except for the few weeks a year when only Finland or only the US
+// has changed its clocks and they reset at 09:00; the puzzles that closed then are
+// still the ones checked. The cron fires at both 07:00 and 08:00 UTC, and only the
+// run at 10 o'clock in Finland does anything.
+const SHAME_TIME_ZONE = "Europe/Helsinki";
+const SHAME_HOUR = 10;
+
+const shameHourFormat = new Intl.DateTimeFormat("en-US", { timeZone: SHAME_TIME_ZONE, hour: "numeric", hourCycle: "h23" });
 
 // How far back to look for the puzzle numbers. Puzzle numbers go up by one a day.
 const ANCHOR_LOOKBACK_DAYS = 60;
@@ -25,18 +29,14 @@ export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<v
     return;
   }
 
-  const nowSeconds = Math.floor(now.getTime() / 1000);
-  const resetAt = puzzleDayStart(nowSeconds);
-  if (nowSeconds - resetAt >= MAX_SECONDS_AFTER_RESET) {
-    console.log({
-      event: "daily_shame_skipped",
-      reason: "not within an hour of the puzzle reset",
-      minutes_since_reset: Math.floor((nowSeconds - resetAt) / 60),
-    });
+  const finnishHour = Number(shameHourFormat.format(now));
+  if (finnishHour !== SHAME_HOUR) {
+    console.log({ event: "daily_shame_skipped", reason: "not 10 o'clock in Finland", finnish_hour: finnishHour });
     return;
   }
-  // The day whose puzzles just closed.
-  const puzzleDay = toIsoDate(puzzleDate(resetAt - 1));
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  // The day whose puzzles closed at the latest reset.
+  const puzzleDay = toIsoDate(puzzleDate(puzzleDayStart(nowSeconds) - 1));
 
   const firstPosts = await listPuzzleFirstPosts(env.DB, nowSeconds - ANCHOR_LOOKBACK_DAYS * SECONDS_PER_DAY);
   const puzzleNumbers = puzzleNumbersFor(puzzleDay, firstPosts);

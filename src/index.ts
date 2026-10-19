@@ -11,7 +11,7 @@ import type { Update } from "./telegram";
 const WEBHOOK_PATH = "/telegram/webhook";
 const SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
 // Must match the daily shame's cron in wrangler.jsonc; the others are the weekly crowning.
-const DAILY_SHAME_CRON = "5 7,8 * * *";
+const DAILY_SHAME_CRON = "0 7,8 * * *";
 
 export default {
   async fetch(request, env, ctx): Promise<Response> {

@@ -20,9 +20,9 @@
   // Cron runs on UTC, so each job is scheduled for both summer and winter time and
   // only the run at the right Finnish time does anything. src/index.ts tells them apart.
   // - The weekly crowning, Fridays at 16:00 in Finland: 13:00 or 14:00 UTC (src/crowning.ts).
-  // - The daily shame for missed results, after the puzzles reset: 07:05 or 08:05 UTC (src/daily-shame.ts).
+  // - The daily shame for missed results, every day at 10:00 in Finland: 07:00 or 08:00 UTC (src/daily-shame.ts).
   "triggers": {
-    "crons": ["0 13 * * fri", "0 14 * * fri", "5 7,8 * * *"]
+    "crons": ["0 13 * * fri", "0 14 * * fri", "0 7,8 * * *"]
   },
   "d1_databases": [
     {
