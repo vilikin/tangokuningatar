@@ -2,9 +2,12 @@ import type { BotApi } from "./bot-api";
 import { formatTurtle, formatWeekLeader } from "./crowning";
 import { findMissedResults, type MissedResults, toIsoDate } from "./daily-shame";
 import { type PlayerTotal, playerTotals, slowestRelativeScore } from "./db";
+import { ennustus } from "./ennustus";
 import { displayNames, formatDuration, formatWeek, joinNames } from "./format";
+import { mood } from "./mood";
 import { GAMES, type GameId } from "./parser";
 import { puzzleDate, puzzleDayStart, puzzleWeek, type PuzzleWeek } from "./puzzle-day";
+import type { User } from "./telegram";
 
 export const BOT_USERNAME = "tangokuningatar_bot";
 
@@ -29,14 +32,17 @@ export function parseCommand(text: string): string | null {
   return match[1]!.toLowerCase().replaceAll("-", "_");
 }
 
+export interface CommandContext {
+  db: D1Database;
+  bot: BotApi;
+  chatId: number;
+  /** When the command was sent. */
+  nowSeconds: number;
+  sender: User | undefined;
+}
+
 /** Builds the reply to a command, or returns null for commands the bot doesn't have. */
-export async function runCommand(
-  command: string,
-  db: D1Database,
-  nowSeconds: number,
-  bot: BotApi,
-  chatId: number,
-): Promise<string | null> {
+export async function runCommand(command: string, { db, bot, chatId, nowSeconds, sender }: CommandContext): Promise<string | null> {
   if (command === "today") {
     return formatLeaderboard("🏆 Today's leaderboard", await playerTotals(db, puzzleDayStart(nowSeconds)));
   }
@@ -52,6 +58,12 @@ export async function runCommand(
     const week = puzzleWeek(nowSeconds);
     const [totals, turtle] = await Promise.all([playerTotals(db, week.start), slowestRelativeScore(db, week.start)]);
     return formatTurtle(week, totals, turtle);
+  }
+  if (command === "mood") {
+    return mood(db, nowSeconds);
+  }
+  if (command === "ennustus") {
+    return ennustus(nowSeconds, sender?.id, sender?.first_name);
   }
   if (command === "missing") {
     const today = toIsoDate(puzzleDate(nowSeconds));
