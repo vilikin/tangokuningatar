@@ -2,14 +2,17 @@ import type { Score } from "./parser";
 import type { Message, User } from "./telegram";
 
 export interface SaveResult {
+  /** Newly stored. */
   saved: number;
+  /** Skipped because an earlier message already has the sender's result for that puzzle. */
   duplicates: number;
 }
 
 /**
  * Stores the sender's scores and refreshes their names, in one transaction.
- * A score for a puzzle the sender already has is skipped: the first post counts,
- * and a redelivered update changes nothing.
+ * A score for a puzzle the sender already has is skipped: the first post counts.
+ * A redelivered update changes nothing and isn't counted as a duplicate, since
+ * the scores on record came from this very message.
  */
 export async function saveScores(db: D1Database, message: Message, sender: User, scores: Score[]): Promise<SaveResult> {
   const upsertPlayer = db
@@ -47,9 +50,20 @@ export async function saveScores(db: D1Database, message: Message, sender: User,
     ),
   );
 
-  const [, ...results] = await db.batch([upsertPlayer, ...scoreInserts]);
-  const saved = results.filter((result) => result.meta.changes > 0).length;
-  return { saved, duplicates: scores.length - saved };
+  const creditedToThisMessage = db
+    .prepare(`SELECT game, puzzle_number FROM scores WHERE telegram_user_id = ? AND chat_id = ? AND message_id = ?`)
+    .bind(sender.id, message.chat.id, message.message_id);
+
+  const [, ...results] = await db.batch<{ game: string; puzzle_number: number }>([
+    upsertPlayer,
+    ...scoreInserts,
+    creditedToThisMessage,
+  ]);
+  const credited = new Set(results.pop()!.results.map((row) => `${row.game}#${row.puzzle_number}`));
+  return {
+    saved: results.filter((result) => result.meta.changes > 0).length,
+    duplicates: scores.filter((score) => !credited.has(`${score.game}#${score.puzzleNumber}`)).length,
+  };
 }
 
 export interface PlayerTotal {

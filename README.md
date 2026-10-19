@@ -2,7 +2,7 @@
 
 Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
 
-It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Messages from every other chat are ignored.
+It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Only the first result per person per puzzle counts; a repost gets a 🤨. Messages from every other chat are ignored.
 
 ## Commands
 
