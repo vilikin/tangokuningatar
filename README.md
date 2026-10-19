@@ -4,6 +4,8 @@ Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our 
 
 It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Only the first result per person per puzzle counts; a repost gets a 🤨. Messages from every other chat are ignored.
 
+The Worker also serves a Telegram Mini App at `/app`. For now it's a demo that only lists the viewer's own scores ([src/mini-app.ts](src/mini-app.ts)). The page itself is public. Its data comes from `/api/my-scores`, which only answers when the request carries initData signed by Telegram, and only for people who have posted a score in our group.
+
 ## Commands
 
 - `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time.
@@ -49,6 +51,12 @@ Secrets live in GitHub's `production` environment, limited to `main`:
 To redeploy without a code change, for example after rotating a secret, use **Actions → CI → Run workflow**. To check or delete the webhook, use **Actions → Telegram webhook**.
 
 Logs are in the Cloudflare dashboard (Workers & Pages → tangokuningatar → Logs). For a live stream, run `npm run tail` after a one-time `npx wrangler login`.
+
+## Mini App setup
+
+One-time, in [@BotFather](https://t.me/BotFather): open the bot's **Bot Settings → Configure Mini App**, enable it and set the URL to the Worker's `workers.dev` URL plus `/app`. That adds **Open App** to the bot's profile, and `https://t.me/tangokuningatar_bot?startapp` opens it from any chat. Pin that link in the group.
+
+The page only works inside Telegram, so try changes by deploying. Opened in a normal browser, it just says so.
 
 ## If the group becomes a supergroup
 
