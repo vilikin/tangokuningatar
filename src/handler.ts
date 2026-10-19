@@ -1,12 +1,15 @@
 import type { BotApi } from "./bot-api";
 import { parseCommand, runCommand } from "./commands";
-import { recordSnitchedEdit, saveScores, type SaveResult } from "./db";
+import { previousBests, recordSnitchedEdit, saveScores, type SaveResult } from "./db";
 import { joinNames } from "./format";
 import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
+import { findHighlights, formatRecords, type Highlights } from "./records";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
 
 // Must be among the emoji Telegram allows bots to react with.
 export const SCORE_REACTION = "👍";
+// Faster than the sender's own best on that game.
+export const PERSONAL_BEST_REACTION = "🔥";
 // The sender already had a result for that puzzle, so this one doesn't count.
 export const DUPLICATE_REACTION = "🤨";
 export const SHAME_REACTION = "👎";
@@ -16,10 +19,11 @@ export const EDIT_REPLY = "🤡 We saw that. The first version still counts.";
 
 /**
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
- * in full, and only scores posted there are saved and get a 👍, or a 🤨 if they
- * were all posted before. Pinpoint and Crossclimb results get a 👎 and a
- * shaming reply. Editing a message that had a score gets a 🤡 and a reply, once
- * per message; the score from the first version stays. Anything else gets a single metadata line without message
+ * in full, and only scores posted there are saved and get a 👍, a 🔥 for a
+ * personal best, or a 🤨 if they were all posted before. A new group record also
+ * gets a reply. Pinpoint and Crossclimb results get a 👎 and a shaming reply.
+ * Editing a message that had a score gets a 🤡 and a reply, once per message;
+ * the score from the first version stays. Anything else gets a single metadata line without message
  * content. Commands (e.g. /today) are answered with a reply in our group only.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
@@ -106,8 +110,18 @@ async function handleMessage(
     ]);
   } else if (stored) {
     // 👍 as long as something in the message counts.
-    const reaction = stored.duplicates === scores.length ? DUPLICATE_REACTION : SCORE_REACTION;
+    const reaction =
+      stored.duplicates === scores.length
+        ? DUPLICATE_REACTION
+        : stored.highlights.personalBests.length > 0
+          ? PERSONAL_BEST_REACTION
+          : SCORE_REACTION;
     await settle(update, [bot.setMessageReaction(message.chat.id, message.message_id, reaction)]);
+  }
+  // Still announced when shame took the reaction: a record is a record.
+  if (stored && stored.highlights.records.length > 0) {
+    const text = formatRecords(stored.highlights.records, message.from!.id, message.from!.first_name);
+    await settle(update, [bot.replyTo(message.chat.id, message.message_id, text)]);
   }
 }
 
@@ -153,7 +167,7 @@ async function handleEditedMessage(
 async function handleCommand(update: Update, message: Message, command: string, db: D1Database, bot: BotApi): Promise<void> {
   let reply: string | null;
   try {
-    reply = await runCommand(command, db, message.date, bot, message.chat.id);
+    reply = await runCommand(command, { db, bot, chatId: message.chat.id, nowSeconds: message.date, sender: message.from });
   } catch (error) {
     console.error({ event: "db_error", update_id: update.update_id, command, error: String(error) });
     return;
@@ -171,13 +185,13 @@ async function handleCommand(update: Update, message: Message, command: string, 
   }
 }
 
-/** Returns what was saved, or null if the scores weren't stored. */
+/** Returns what was saved and any bests it beat, or null if the scores weren't stored. */
 async function storeScores(
   update: Update,
   message: Message,
   scores: Score[],
   db: D1Database,
-): Promise<SaveResult | null> {
+): Promise<(SaveResult & { highlights: Highlights }) | null> {
   const sender = message.from;
   const skipReason = !sender
     ? "no sender"
@@ -192,9 +206,21 @@ async function storeScores(
   }
 
   try {
+    const before = await previousBests(db, message, sender, scores.map((score) => score.game));
     const result = await saveScores(db, message, sender, scores);
-    console.log({ event: "scores_saved", update_id: update.update_id, from_id: sender.id, ...result });
-    return result;
+    const { counted: _, ...counts } = result;
+    console.log({ event: "scores_saved", update_id: update.update_id, from_id: sender.id, ...counts });
+    const highlights = findHighlights(result.counted, before);
+    if (highlights.personalBests.length > 0 || highlights.records.length > 0) {
+      console.log({
+        event: "score_highlights",
+        update_id: update.update_id,
+        from_id: sender.id,
+        personal_bests: highlights.personalBests,
+        records: highlights.records.map(({ score }) => score.game),
+      });
+    }
+    return { ...result, highlights };
   } catch (error) {
     console.error({ event: "db_error", update_id: update.update_id, error: String(error) });
     return null;

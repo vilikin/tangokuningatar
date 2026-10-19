@@ -2,7 +2,7 @@
 
 Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
 
-It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Only the first result per person per puzzle counts; a repost gets a 🤨. Editing a message with a score doesn't change the score, but it gets a 🤡 and a "We saw that." Messages from every other chat are ignored.
+It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍, or a 🔥 for beating your own best on that game. Beating the group's all-time record for a game also gets a reply ([src/records.ts](src/records.ts)). Your first result on a game is never a personal best, and ties don't count. Only the first result per person per puzzle counts; a repost gets a 🤨. Editing a message with a score doesn't change the score, but it gets a 🤡 and a "We saw that." Messages from every other chat are ignored.
 
 The Worker also serves a Telegram Mini App at `/app` with this week's standings, all games together and each game alone, the same as `/week` ([src/mini-app.ts](src/mini-app.ts), [src/mini-app.html](src/mini-app.html)). The page itself is public. Its data comes from `/api/week`, which only answers when the request carries initData signed by Telegram, and only for people who have posted a score in our group.
 
@@ -13,6 +13,8 @@ The Worker also serves a Telegram Mini App at `/app` with this week's standings,
 - `/week_queens`, `/week_tango`, `/week_zip`, `/week_mini_sudoku`, `/week_patches`, `/week_wend`: the week for one game. Typing `/week-zip` works too, but Telegram doesn't allow hyphens in the command menu.
 - `/kuningatar`: who leads `/week` so far, the Tangokuningatar in waiting.
 - `/turtle`: the turtle so far: the slowest result of the week compared with the fastest time on the same puzzle, like "Tango #600 in 1:30, 3.0× the fastest 0:30". Only puzzles that more than one person played count.
+- `/mood`: the bot's mood about today. Each of today's results is compared with that player's own average on the same game over the last 4 weeks, once they have at least 3 results there. The average of those decides the mood, from 🤩 to 😭, and the best and worst results are named ([src/mood.ts](src/mood.ts)).
+- `/ennustus`: your puzzle horoscope for today: a lucky game, one to beware of, a lucky time, a rival from the group (someone who posted in the last 4 weeks) and some advice. We play side by side, so the advice is about the race, not the time of day. It's the same all puzzle day, so asking again doesn't reroll it ([src/ennustus.ts](src/ennustus.ts)).
 
 The top three get medals, everyone else a 🐢. Days start when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland), so a week runs from Saturday's puzzles to Friday's. Older puzzles posted late don't count.
 

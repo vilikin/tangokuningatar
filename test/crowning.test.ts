@@ -26,6 +26,12 @@ const sentTexts = () =>
     .filter(({ method }) => method === "sendMessage")
     .map(({ params }) => (params as { text: string }).text);
 
+/** Messages posted on their own, not as a reply (posting scores can also get a record reply). */
+const postedTexts = () =>
+  telegramCalls()
+    .filter(({ method, params }) => method === "sendMessage" && !(params as object).hasOwnProperty("reply_parameters"))
+    .map(({ params }) => (params as { text: string }).text);
+
 const WEEK = "Week is Sat–Fri: Sat 17.10. – Fri 23.10.";
 
 /**
@@ -78,7 +84,7 @@ describe("weekly crowning", () => {
 
     await runScheduled(iso, cron);
 
-    expect(sentTexts()).toEqual([]);
+    expect(postedTexts()).toEqual([]);
     expect(logged("log")).toContainEqual({ event: "weekly_crowning_skipped", reason: `it's ${hour}:00 in Finland, not 16:00` });
   });
 
@@ -87,7 +93,7 @@ describe("weekly crowning", () => {
 
     await runScheduled("2026-10-30T14:00:00Z", "0 14 * * fri");
 
-    expect(sentTexts()).toEqual([
+    expect(postedTexts()).toEqual([
       "👑 Tangokuningatar of the week: Aino!\n0:30 over 1 game.\n\n" +
         "🐢 No turtle this week: nobody was slower than anyone else on the same puzzle!\n\n" +
         "Week is Sat–Fri: Sat 24.10. – Fri 30.10.\nFull standings: /week",
@@ -100,7 +106,7 @@ describe("weekly crowning", () => {
 
     await runScheduled("2026-10-23T13:00:00Z");
 
-    expect(sentTexts()[0]).toMatch(/^👑 Tangokuningatar of the week: Aino and Liisa!\n0:30 over 1 game each\.\n\n🐢 No turtle/);
+    expect(postedTexts()[0]).toMatch(/^👑 Tangokuningatar of the week: Aino and Liisa!\n0:30 over 1 game each\.\n\n🐢 No turtle/);
   });
 
   it("only counts a puzzle for the turtle when someone else played it too", async () => {
@@ -109,7 +115,7 @@ describe("weekly crowning", () => {
 
     await runScheduled("2026-10-23T13:00:00Z");
 
-    expect(sentTexts()[0]).toContain("🐢 Turtle of the week: Aino\nZip #572 in 0:30, 1.5× the fastest 0:20 (Liisa).");
+    expect(postedTexts()[0]).toContain("🐢 Turtle of the week: Aino\nZip #572 in 0:30, 1.5× the fastest 0:20 (Liisa).");
   });
 
   it("posts nothing in a week without scores", async () => {

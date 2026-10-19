@@ -4,6 +4,7 @@
 // The page itself is public and holds no data. It sends the initData Telegram gives
 // it to the API, which only answers once the signature checks out.
 
+import { shownOrder } from "./april-fools";
 import { verifyInitData } from "./auth";
 import { rankTotals } from "./commands";
 import { isPlayer, playerTotals } from "./db";
@@ -67,7 +68,7 @@ export async function serveWeek(request: Request, env: Env): Promise<Response> {
     },
     boards: boards.map((board, i) => ({
       ...board,
-      standings: rankTotals(totals[i]!).map(({ rank, name, total }) => ({
+      standings: rankTotals(shownOrder(totals[i]!, now)).map(({ rank, name, total }) => ({
         rank,
         name,
         games: total.games,
