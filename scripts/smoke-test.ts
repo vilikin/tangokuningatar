@@ -72,7 +72,7 @@ try {
   expectStatus("wrong secret", (await post("wrong", update)).status, 401);
   expectStatus("GET", (await fetch(WEBHOOK_URL)).status, 405);
   expectStatus("Mini App page", (await fetch(`${ORIGIN}/app`)).status, 200);
-  expectStatus("Mini App API without initData", (await fetch(`${ORIGIN}/api/my-scores`)).status, 401);
+  expectStatus("Mini App API without initData", (await fetch(`${ORIGIN}/api/week`)).status, 401);
 } catch (error) {
   console.error(`✘ ${error instanceof Error ? error.message : error}`);
   process.exitCode = 1;

@@ -148,25 +148,8 @@ export async function slowestRelativeScore(db: D1Database, since: number): Promi
     .first<TurtleScore>();
 }
 
-export interface PlayerScore {
-  game: string;
-  puzzle_number: number;
-  time_seconds: number;
-  no_hints: number;
-  no_redraws: number;
-  posted_at: number;
-}
-
-/** A player's scores, newest first, or null if they've never posted one in our group. */
-export async function findPlayerScores(db: D1Database, telegramUserId: number): Promise<PlayerScore[] | null> {
-  const [player, scores] = await db.batch<{ telegram_user_id?: number } & PlayerScore>([
-    db.prepare("SELECT telegram_user_id FROM players WHERE telegram_user_id = ?").bind(telegramUserId),
-    db
-      .prepare(
-        `SELECT game, puzzle_number, time_seconds, no_hints, no_redraws, posted_at
-         FROM scores WHERE telegram_user_id = ? ORDER BY posted_at DESC, game`,
-      )
-      .bind(telegramUserId),
-  ]);
-  return player!.results.length > 0 ? (scores!.results as PlayerScore[]) : null;
+/** Whether this person has ever posted a score in our group. */
+export async function isPlayer(db: D1Database, telegramUserId: number): Promise<boolean> {
+  const row = await db.prepare("SELECT 1 FROM players WHERE telegram_user_id = ?").bind(telegramUserId).first();
+  return row !== null;
 }

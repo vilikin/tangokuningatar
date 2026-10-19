@@ -64,16 +64,28 @@ export function formatLeaderboard(header: string, totals: PlayerTotal[]): string
   if (totals.length === 0) {
     return `${header}\n\nNo scores yet. Get puzzling! 🧩`;
   }
+  const lines = rankTotals(totals).map(({ rank, name, total }) => {
+    const games = total.games === 1 ? "1 game" : `${total.games} games`;
+    return `${MEDALS[rank - 1] ?? BELOW_PODIUM} ${name}: ${formatDuration(total.totalSeconds)} (${games})`;
+  });
+  return [header, "", ...lines].join("\n");
+}
+
+export interface Standing {
+  rank: number;
+  name: string;
+  total: PlayerTotal;
+}
+
+/** Ranks and display names for totals that are already in order. Equal games and time share a rank. */
+export function rankTotals(totals: PlayerTotal[]): Standing[] {
   const names = displayNames(totals);
   let rank = 0;
-  const lines = totals.map((total, i) => {
+  return totals.map((total, i) => {
     const previous = totals[i - 1];
-    // Equal games and time share a rank.
     if (!previous || previous.games !== total.games || previous.totalSeconds !== total.totalSeconds) {
       rank = i + 1;
     }
-    const games = total.games === 1 ? "1 game" : `${total.games} games`;
-    return `${MEDALS[rank - 1] ?? BELOW_PODIUM} ${names.get(total.telegramUserId)}: ${formatDuration(total.totalSeconds)} (${games})`;
+    return { rank, name: names.get(total.telegramUserId)!, total };
   });
-  return [header, "", ...lines].join("\n");
 }
