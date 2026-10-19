@@ -1,0 +1,355 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="color-scheme" content="light dark">
+<title>This week</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  /* Telegram sets the --tg-theme-* variables from the viewer's theme. The
+     fallbacks only show in a plain browser. */
+  :root {
+    --bg: var(--tg-theme-secondary-bg-color, #f0f0f5);
+    --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #ffffff));
+    --text: var(--tg-theme-text-color, #111114);
+    --hint: var(--tg-theme-hint-color, #8b8b93);
+    --accent: var(--tg-theme-button-color, #2f80ed);
+    --accent-text: var(--tg-theme-button-text-color, #ffffff);
+    --separator: var(--tg-theme-section-separator-color, rgba(127, 127, 140, 0.18));
+    --gold: #f2b830;
+    --silver: #a9b3c1;
+    --bronze: #d0814f;
+    --radius: 18px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: var(--tg-theme-secondary-bg-color, #0f0f12);
+      --card: var(--tg-theme-section-bg-color, var(--tg-theme-bg-color, #1c1c21));
+      --text: var(--tg-theme-text-color, #f2f2f5);
+      --hint: var(--tg-theme-hint-color, #8d8d96);
+      --accent: var(--tg-theme-button-color, #4b9bf5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 15px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", Roboto, "Segoe UI", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+    padding: 20px 16px calc(28px + env(safe-area-inset-bottom));
+    max-width: 560px;
+    margin: 0 auto;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  .hint { color: var(--hint); }
+
+  /* Header */
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--hint); }
+  h1 { font-size: 30px; line-height: 1.1; letter-spacing: -0.02em; margin: 4px 0 16px; }
+  .days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .day { text-align: center; font-size: 11px; font-weight: 600; color: var(--hint); }
+  .day::before {
+    content: ""; display: block; height: 6px; border-radius: 3px; margin-bottom: 5px;
+    background: var(--separator);
+  }
+  .day.done::before { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+  .day.today { color: var(--accent); }
+  .day.today::before { background: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+  .day-note { font-size: 13px; margin: 10px 0 0; }
+
+  /* Game picker */
+  .chips {
+    display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+    margin: 20px -16px 0; padding: 4px 16px 4px;
+    position: sticky; top: 0; z-index: 2; background: var(--bg);
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex: none; border: 0; font: inherit; font-size: 14px; font-weight: 600;
+    padding: 8px 14px; border-radius: 999px; cursor: pointer;
+    background: var(--card); color: var(--text);
+    transition: background-color 0.2s, color 0.2s, transform 0.1s;
+  }
+  .chip:active { transform: scale(0.96); }
+  .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+  .summary { font-size: 13px; margin: 14px 4px 10px; }
+
+  /* Cards */
+  .card { background: var(--card); border-radius: var(--radius); overflow: hidden; }
+  .card + .card { margin-top: 12px; }
+  .board > .card:first-child { margin-top: 14px; }
+
+  /* Podium */
+  .podium {
+    display: grid; grid-template-columns: repeat(3, 1fr); align-items: end; gap: 8px;
+    padding: 22px 12px 0;
+  }
+  .place { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; }
+  .place.empty { visibility: hidden; }
+  .place .avatar-wrap { position: relative; margin-bottom: 8px; }
+  .place .medal { position: absolute; right: -8px; bottom: -6px; font-size: 27px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2)); }
+  .place .name { font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .place .time { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; margin-top: 2px; }
+  .place .games { font-size: 12px; margin-bottom: 10px; }
+  .pedestal {
+    width: 100%; border-radius: 12px 12px 0 0;
+    display: flex; align-items: flex-start; justify-content: center; padding-top: 8px;
+    font-size: 22px; font-weight: 800; color: var(--tone);
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--tone) 32%, transparent), color-mix(in srgb, var(--tone) 8%, transparent));
+    transform-origin: bottom; animation: rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  .place.p1 .pedestal { height: 86px; animation-delay: 0.1s; }
+  .place.p2 .pedestal { height: 62px; animation-delay: 0.2s; }
+  .place.p3 .pedestal { height: 46px; animation-delay: 0.3s; }
+  .tone-1 { --tone: var(--gold); }
+  .tone-2 { --tone: var(--silver); }
+  .tone-3 { --tone: var(--bronze); }
+  @keyframes rise { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+
+  /* Avatars: initials on Telegram-style gradients. */
+  .avatar {
+    --size: 40px;
+    width: var(--size); height: var(--size); border-radius: 50%; flex: none;
+    display: grid; place-items: center;
+    color: #fff; font-weight: 700; font-size: calc(var(--size) * 0.38); letter-spacing: 0.02em;
+    background: linear-gradient(to bottom, var(--from), var(--to));
+  }
+  .place .avatar { --size: 58px; }
+  .place.p1 .avatar { --size: 70px; box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--gold); }
+  .c0 { --from: #ff885e; --to: #ff516a; }
+  .c1 { --from: #ffcd6a; --to: #ffa85c; }
+  .c2 { --from: #82b1ff; --to: #665fff; }
+  .c3 { --from: #a0de7e; --to: #54cb68; }
+  .c4 { --from: #53edd6; --to: #28c9b7; }
+  .c5 { --from: #72d5fd; --to: #2a9ef1; }
+  .c6 { --from: #e0a2f3; --to: #d669ed; }
+
+  .you-tag {
+    display: inline-block; vertical-align: 1px; margin-left: 5px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+    padding: 2px 6px; border-radius: 6px;
+    background: var(--accent); color: var(--accent-text);
+  }
+
+  /* The rest */
+  .rows { list-style: none; margin: 0; padding: 4px 0; }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 16px; position: relative; }
+  .row + .row::before {
+    content: ""; position: absolute; top: 0; right: 0; left: 96px; height: 1px; background: var(--separator);
+  }
+  .row.you { background: color-mix(in srgb, var(--accent) 11%, transparent); }
+  .row .rank { width: 28px; text-align: center; font-size: 15px; font-weight: 700; color: var(--hint); flex: none; }
+  .row .rank.medal { font-size: 22px; }
+  .row .who { flex: 1; min-width: 0; }
+  .row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .games { font-size: 13px; }
+  .row .time { font-size: 17px; font-weight: 700; }
+
+  .board > * { animation: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .rows .row { animation: fade-up 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(0.15s + var(--i, 0) * 0.04s); }
+  @keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+  .message { padding: 36px 24px; text-align: center; }
+  .message .icon { font-size: 44px; line-height: 1; }
+  .message .title { font-size: 17px; font-weight: 700; margin-top: 12px; }
+  .message .body { margin-top: 4px; }
+
+  .footnote { font-size: 13px; text-align: center; margin: 18px 12px 0; }
+  .not-on-board { font-size: 13px; text-align: center; margin: 12px 4px 0; }
+
+  /* Loading */
+  .skeleton { background: var(--card); border-radius: var(--radius); height: 240px; position: relative; overflow: hidden; }
+  .skeleton::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--hint) 12%, transparent) 50%, transparent 70%);
+    animation: shimmer 1.3s infinite;
+  }
+  @keyframes shimmer { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="eyebrow" id="range">This week</div>
+  <h1>Standings</h1>
+  <div class="days" id="days" aria-hidden="true"></div>
+  <p class="day-note hint" id="day-note"></p>
+</header>
+<nav class="chips" id="chips" aria-label="Game"></nav>
+<main id="main">
+  <div class="skeleton" style="margin-top: 14px"></div>
+</main>
+
+<script>
+  // Everything people typed (names) goes in through textContent, never innerHTML.
+  const app = window.Telegram?.WebApp;
+  app?.ready();
+  app?.expand();
+  if (app?.isVersionAtLeast?.("6.1")) {
+    app.setHeaderColor("secondary_bg_color");
+    app.setBackgroundColor("secondary_bg_color");
+  }
+
+  const DAY_LABELS = ["S", "S", "M", "T", "W", "T", "F"];
+  const MEDALS = ["🥇", "🥈", "🥉"];
+  const main = document.getElementById("main");
+  let data = null;
+  let selected = "all";
+
+  function h(tag, props, ...children) {
+    const element = document.createElement(tag);
+    for (const [key, value] of Object.entries(props ?? {})) {
+      if (key === "class") element.className = value;
+      else if (key === "text") element.textContent = value;
+      else if (key === "style") element.style.cssText = value;
+      else if (key.startsWith("on")) element.addEventListener(key.slice(2), value);
+      else element.setAttribute(key, value);
+    }
+    element.append(...children.filter((child) => child !== null && child !== undefined && child !== false));
+    return element;
+  }
+
+  function initials(name) {
+    return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => [...part][0].toUpperCase()).join("");
+  }
+
+  function colourClass(name) {
+    let hash = 0;
+    for (const char of name) hash = (hash * 31 + char.codePointAt(0)) >>> 0;
+    return "c" + (hash % 7);
+  }
+
+  function avatar(name) {
+    return h("div", { class: "avatar " + colourClass(name), text: initials(name) });
+  }
+
+  function gamesLabel(games) {
+    return games === 1 ? "1 game" : games + " games";
+  }
+
+  function youTag(standing) {
+    return standing.you ? h("span", { class: "you-tag", text: "You" }) : null;
+  }
+
+  function message(icon, title, body) {
+    return h("div", { class: "card message" },
+      h("div", { class: "icon", text: icon }),
+      h("div", { class: "title", text: title }),
+      body ? h("div", { class: "body hint", text: body }) : null);
+  }
+
+  function renderHeader() {
+    const { saturday, friday, day } = data.week;
+    document.getElementById("range").textContent = "This week · Sat " + saturday + " – Fri " + friday;
+    document.getElementById("days").replaceChildren(...DAY_LABELS.map((label, i) =>
+      h("div", { class: "day" + (i + 1 < day ? " done" : i + 1 === day ? " today" : ""), text: label })));
+    const left = 7 - day;
+    document.getElementById("day-note").textContent =
+      left === 0 ? "Final day of the week. Make it count!" : "Day " + day + " of 7 · " + left + (left === 1 ? " day" : " days") + " to go";
+  }
+
+  function renderChips() {
+    const chips = document.getElementById("chips");
+    chips.replaceChildren(...data.boards.map((board) =>
+      h("button", {
+        class: "chip",
+        type: "button",
+        "aria-pressed": String(board.id === selected),
+        text: board.id === "all" ? "All games" : board.name,
+        onclick: () => {
+          if (board.id === selected) return;
+          selected = board.id;
+          app?.HapticFeedback?.selectionChanged();
+          renderChips();
+          renderBoard();
+        },
+      })));
+    // Keeps a board opened by link (say Wend, the last chip) in view.
+    chips.querySelector('[aria-pressed="true"]')?.scrollIntoView({ inline: "nearest", block: "nearest" });
+  }
+
+  function podiumPlace(standing, position) {
+    if (!standing) return h("div", { class: "place empty p" + position });
+    const tone = "tone-" + Math.min(standing.rank, 3);
+    return h("div", { class: "place p" + position + " " + tone },
+      h("div", { class: "avatar-wrap" },
+        avatar(standing.name),
+        h("span", { class: "medal", text: MEDALS[standing.rank - 1] ?? "" })),
+      h("div", { class: "name" }, standing.name, youTag(standing)),
+      h("div", { class: "time num", text: standing.time }),
+      h("div", { class: "games hint", text: gamesLabel(standing.games) }),
+      h("div", { class: "pedestal num", text: String(standing.rank) }));
+  }
+
+  function renderBoard() {
+    const board = data.boards.find(({ id }) => id === selected) ?? data.boards[0];
+    const { standings } = board;
+    const content = [];
+
+    if (standings.length === 0) {
+      content.push(message("🧩", "No scores yet", "Be the first to post " + (board.id === "all" ? "a result" : "a " + board.name + " result") + " this week."));
+    } else {
+      const results = standings.reduce((sum, { games }) => sum + games, 0);
+      content.push(h("p", {
+        class: "summary hint",
+        text: standings.length + (standings.length === 1 ? " player" : " players") + " · " + results + (results === 1 ? " result" : " results"),
+      }));
+      const [first, second, third] = standings;
+      content.push(h("section", { class: "card", "aria-label": "Podium" },
+        h("div", { class: "podium" }, podiumPlace(second, 2), podiumPlace(first, 1), podiumPlace(third, 3))));
+
+      const rest = standings.slice(3);
+      if (rest.length > 0) {
+        content.push(h("section", { class: "card", "aria-label": "Everyone else" },
+          h("ol", { class: "rows" }, ...rest.map((standing, i) =>
+            h("li", { class: "row" + (standing.you ? " you" : ""), style: "--i: " + i },
+              standing.rank <= 3
+                ? h("div", { class: "rank medal", text: MEDALS[standing.rank - 1] })
+                : h("div", { class: "rank num", text: String(standing.rank) }),
+              avatar(standing.name),
+              h("div", { class: "who" },
+                h("div", { class: "name" }, standing.name, youTag(standing)),
+                h("div", { class: "games hint", text: gamesLabel(standing.games) })),
+              h("div", { class: "time num", text: standing.time }))))));
+      }
+      if (!standings.some(({ you }) => you)) {
+        content.push(h("p", {
+          class: "not-on-board hint",
+          text: "You're not on this board yet. Post " + (board.id === "all" ? "a result" : "a " + board.name + " result") + " to join in.",
+        }));
+      }
+    }
+    content.push(h("p", { class: "footnote hint", text: "More games ranks higher, then the lower total time. Same as /week." }));
+    main.replaceChildren(h("div", { class: "board" }, ...content));
+  }
+
+  async function load() {
+    if (!app?.initData) {
+      main.replaceChildren(message("📱", "Open this in Telegram", "The standings are only for our group, so this page works inside Telegram."));
+      return;
+    }
+    const response = await fetch("/api/week", { headers: { Authorization: "tma " + app.initData } });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      main.replaceChildren(message("🔒", "Can't show the standings", body.error ?? "Something went wrong (" + response.status + ")."));
+      return;
+    }
+    data = body;
+    // A link like t.me/tangokuningatar_bot?startapp=zip opens that game.
+    const start = app.initDataUnsafe?.start_param?.replaceAll("_", "-");
+    if (data.boards.some(({ id }) => id === start)) selected = start;
+    renderHeader();
+    renderChips();
+    renderBoard();
+  }
+
+  load().catch((error) => main.replaceChildren(message("⚠️", "Something went wrong", String(error))));
+</script>
+</body>
+</html>
