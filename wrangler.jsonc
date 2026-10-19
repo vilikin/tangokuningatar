@@ -13,13 +13,16 @@
   "vars": {
     // Our Telegram group. If the group is ever upgraded to a supergroup, its ID changes
     // (to a -100… number) and the Worker logs a "chat_migrated" warning with the new value.
-    "ALLOWED_CHAT_ID": "-5465433776"
+    "ALLOWED_CHAT_ID": "-5465433776",
+    // GIF for the daily shame: a Telegram file_id or an https URL. Empty = caption only.
+    "SHAME_GIF": ""
   },
-  // The weekly crowning, Fridays at 16:00 in Finland. Cron runs on UTC, so this is
-  // both 13:00 (summer time) and 14:00 (winter time); only the run at 16:00 Finnish
-  // time posts (see src/crowning.ts).
+  // Cron runs on UTC, so each job is scheduled for both summer and winter time and
+  // only the run at the right Finnish time does anything. src/index.ts tells them apart.
+  // - The weekly crowning, Fridays at 16:00 in Finland: 13:00 or 14:00 UTC (src/crowning.ts).
+  // - The daily shame for missed results, after the puzzles reset: 07:05 or 08:05 UTC (src/daily-shame.ts).
   "triggers": {
-    "crons": ["0 13 * * fri", "0 14 * * fri"]
+    "crons": ["0 13 * * fri", "0 14 * * fri", "5 7,8 * * *"]
   },
   "d1_databases": [
     {
