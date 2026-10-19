@@ -207,26 +207,47 @@ describe("daily shame", () => {
     ]);
   });
 
-  it("does nothing on the run that isn't right after the reset", async () => {
-    await seedGroup();
-    mockMembers();
+  // The cron fires at 07:05 and 08:05 UTC. Finland is UTC+3 in summer time and UTC+2 in winter.
+  describe("timing in Finland", () => {
+    async function shamedDayAt(utc: string): Promise<unknown> {
+      await addPlayer(CECILIA, "Cecilia");
+      mockMembers();
+      await runDailyShame(new Date(utc), withGif, bot);
+      return logged("log").find(({ event }) => event === "daily_shame_done")?.puzzle_day ?? null;
+    }
 
-    // 08:05 UTC is 01:05 Pacific in summer time: the 07:05 run already handled it.
-    await runDailyShame(new Date("2026-10-20T08:05:00Z"), withGif, bot);
+    it.each([
+      ["summer time in both", "2026-10-20T07:05:00Z", "10:05", "2026-10-19"],
+      ["winter time in both", "2026-12-10T08:05:00Z", "10:05", "2026-12-09"],
+    ])("shames at 10:05 with %s", async (_, utc, _helsinki, puzzleDay) => {
+      expect(await shamedDayAt(utc)).toBe(puzzleDay);
+    });
 
-    expect(telegramCalls()).toEqual([]);
-    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_skipped", pacific_hour: 1 }));
-  });
+    it.each([
+      ["summer time in both", "2026-10-20T08:05:00Z", "11:05"],
+      ["winter time in both", "2026-12-10T07:05:00Z", "09:05, before the reset"],
+    ])("stays quiet on the other run with %s (%s)", async (_, utc) => {
+      expect(await shamedDayAt(utc)).toBeNull();
+      expect(telegramCalls()).toEqual([]);
+      expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_skipped" }));
+    });
 
-  it("runs on the 08:05 UTC cron in Pacific winter time", async () => {
-    await addPlayer(CECILIA, "Cecilia");
-    mockMembers();
+    // Finland changes its clocks on the last Sunday of March and October, the US on
+    // the second Sunday of March and the first Sunday of November. In between, the
+    // puzzles reset at 09:00 in Finland, so that's when the shame goes out.
+    it.each([
+      ["late October (Finland already on winter time)", "2026-10-28T07:05:00Z", "2026-10-27"],
+      ["March (US already on summer time)", "2027-03-20T07:05:00Z", "2027-03-19"],
+    ])("shames at 09:05 in %s, right after that day's earlier reset", async (_, utc, puzzleDay) => {
+      expect(await shamedDayAt(utc)).toBe(puzzleDay);
+    });
 
-    // 00:05 PST on 10 December.
-    await runDailyShame(new Date("2026-12-10T08:05:00Z"), withGif, bot);
-
-    expect(shamePosts()).toHaveLength(1);
-    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_done", puzzle_day: "2026-12-09" }));
+    it.each([
+      ["late October", "2026-10-28T08:05:00Z"],
+      ["March", "2027-03-20T08:05:00Z"],
+    ])("doesn't shame again at 10:05 in %s", async (_, utc) => {
+      expect(await shamedDayAt(utc)).toBeNull();
+    });
   });
 
   it("is what the Worker's cron trigger runs", async () => {

@@ -1,12 +1,13 @@
 import type { BotApi } from "./bot-api";
 import { listPlayers, listPosters, listPuzzleFirstPosts, type Player, recordShame } from "./db";
 import { GAMES, type GameId } from "./parser";
+import { puzzleDate, puzzleDayStart } from "./puzzle-day";
 
-// LinkedIn switches every game to a new puzzle at midnight Pacific time:
-// 10:00 in Helsinki, or 09:00 for the few weeks a year when only one side has
-// switched to or from summer time. The cron fires at both 07:05 and 08:05 UTC,
-// and only the run in the first hour of the Pacific day does anything.
-const PUZZLE_TIME_ZONE = "America/Los_Angeles";
+// The shame goes out when the puzzles reset (see puzzle-day.ts): 10:00 in Finland,
+// or 09:00 for the few weeks a year when only Finland or only the US has changed
+// its clocks. The cron fires at both 07:05 and 08:05 UTC, and only the run within
+// an hour of the reset does anything.
+const MAX_SECONDS_AFTER_RESET = 3_600;
 
 // How far back to look for the puzzle numbers. Puzzle numbers go up by one a day.
 const ANCHOR_LOOKBACK_DAYS = 60;
@@ -24,14 +25,20 @@ export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<v
     return;
   }
 
-  const { date: today, hour } = pacificDateAndHour(now);
-  if (hour !== 0) {
-    console.log({ event: "daily_shame_skipped", reason: "not the hour after the puzzle reset", pacific_hour: hour });
+  const nowSeconds = Math.floor(now.getTime() / 1000);
+  const resetAt = puzzleDayStart(nowSeconds);
+  if (nowSeconds - resetAt >= MAX_SECONDS_AFTER_RESET) {
+    console.log({
+      event: "daily_shame_skipped",
+      reason: "not within an hour of the puzzle reset",
+      minutes_since_reset: Math.floor((nowSeconds - resetAt) / 60),
+    });
     return;
   }
-  const puzzleDay = addDays(today, -1);
+  // The day whose puzzles just closed.
+  const puzzleDay = toIsoDate(puzzleDate(resetAt - 1));
 
-  const firstPosts = await listPuzzleFirstPosts(env.DB, Math.floor(now.getTime() / 1000) - ANCHOR_LOOKBACK_DAYS * SECONDS_PER_DAY);
+  const firstPosts = await listPuzzleFirstPosts(env.DB, nowSeconds - ANCHOR_LOOKBACK_DAYS * SECONDS_PER_DAY);
   const puzzleNumbers = puzzleNumbersFor(puzzleDay, firstPosts);
   const posters = await listPosters(
     env.DB,
@@ -126,38 +133,24 @@ export function puzzleNumbersFor(
 ): Partial<Record<GameId, number>> {
   const offsets = new Map<string, number>();
   for (const { game, puzzle_number, first_posted_at } of firstPosts) {
-    const offset = puzzle_number - dayIndex(pacificDateAndHour(new Date(first_posted_at * 1000)).date);
+    const offset = puzzle_number - dayIndex(puzzleDate(first_posted_at));
     offsets.set(game, Math.max(offset, offsets.get(game) ?? -Infinity));
   }
   const numbers: Partial<Record<GameId, number>> = {};
   for (const game of Object.keys(GAMES) as GameId[]) {
     const offset = offsets.get(game);
     if (offset !== undefined) {
-      numbers[game] = offset + dayIndex(puzzleDay);
+      numbers[game] = offset + dayIndex(new Date(`${puzzleDay}T00:00:00Z`));
     }
   }
   return numbers;
 }
 
-const pacificFormat = new Intl.DateTimeFormat("en-CA", {
-  timeZone: PUZZLE_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  hourCycle: "h23",
-});
-
-export function pacificDateAndHour(instant: Date): { date: string; hour: number } {
-  const parts = Object.fromEntries(pacificFormat.formatToParts(instant).map(({ type, value }) => [type, value]));
-  return { date: `${parts.year}-${parts.month}-${parts.day}`, hour: Number(parts.hour) };
+/** Days since 1970-01-01 for a date at midnight UTC. */
+function dayIndex(date: Date): number {
+  return Math.round(date.getTime() / (SECONDS_PER_DAY * 1000));
 }
 
-/** Days since 1970-01-01 for a 'YYYY-MM-DD' calendar date. */
-function dayIndex(date: string): number {
-  return Date.parse(`${date}T00:00:00Z`) / (SECONDS_PER_DAY * 1000);
-}
-
-function addDays(date: string, days: number): string {
-  return new Date((dayIndex(date) + days) * SECONDS_PER_DAY * 1000).toISOString().slice(0, 10);
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
