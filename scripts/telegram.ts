@@ -11,7 +11,16 @@
 const WEBHOOK_PATH = "/telegram/webhook";
 const ALLOWED_UPDATES = ["message", "my_chat_member"];
 // The menu Telegram shows when typing "/". Keep in sync with runCommand in src/commands.ts.
-const COMMANDS = [{ command: "today", description: "Today's leaderboard" }];
+// Command names may only contain lowercase letters, digits and underscores.
+const WEEK_GAMES = { queens: "Queens", tango: "Tango", zip: "Zip", mini_sudoku: "Mini Sudoku", patches: "Patches", wend: "Wend" };
+const COMMANDS = [
+  { command: "today", description: "Today's leaderboard" },
+  { command: "week", description: "This week's leaderboard, all games (Sat–Fri)" },
+  ...Object.entries(WEEK_GAMES).map(([id, name]) => ({
+    command: `week_${id}`,
+    description: `This week's ${name} leaderboard (Sat–Fri)`,
+  })),
+];
 
 interface TelegramResponse {
   ok: boolean;
