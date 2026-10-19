@@ -6,6 +6,8 @@ export interface SaveResult {
   saved: number;
   /** Skipped because an earlier message already has the sender's result for that puzzle. */
   duplicates: number;
+  /** The scores on record from this message: the ones that count. */
+  counted: Score[];
 }
 
 /**
@@ -60,10 +62,58 @@ export async function saveScores(db: D1Database, message: Message, sender: User,
     creditedToThisMessage,
   ]);
   const credited = new Set(results.pop()!.results.map((row) => `${row.game}#${row.puzzle_number}`));
+  const counted = scores.filter((score) => credited.has(`${score.game}#${score.puzzleNumber}`));
   return {
     saved: results.filter((result) => result.meta.changes > 0).length,
-    duplicates: scores.filter((score) => !credited.has(`${score.game}#${score.puzzleNumber}`)).length,
+    duplicates: scores.length - counted.length,
+    counted,
   };
+}
+
+export interface PreviousBest {
+  game: GameId;
+  /** The group record before this message, and who set it first. */
+  recordSeconds: number;
+  recordUserId: number;
+  recordFirstName: string;
+  /** The sender's own best before this message, or null if this is their first. */
+  personalSeconds: number | null;
+}
+
+/**
+ * The group record and the sender's own best for each game, from every score
+ * except the ones in this message. Leaving the message out means a redelivered
+ * update gets the same answer. Games nobody has played yet are left out.
+ */
+export async function previousBests(
+  db: D1Database,
+  message: Message,
+  sender: User,
+  games: GameId[],
+): Promise<PreviousBest[]> {
+  const { results } = await db
+    .prepare(
+      `WITH others AS (
+         SELECT telegram_user_id, game, time_seconds, posted_at FROM scores
+         WHERE game IN (SELECT value FROM json_each(?1)) AND NOT (chat_id = ?2 AND message_id = ?3)
+       ),
+       records AS (
+         SELECT game, telegram_user_id, time_seconds,
+                ROW_NUMBER() OVER (PARTITION BY game ORDER BY time_seconds, posted_at) AS place
+         FROM others
+       )
+       SELECT r.game,
+              r.time_seconds     AS recordSeconds,
+              r.telegram_user_id AS recordUserId,
+              p.first_name       AS recordFirstName,
+              (SELECT MIN(o.time_seconds) FROM others o WHERE o.game = r.game AND o.telegram_user_id = ?4) AS personalSeconds
+       FROM records r
+       JOIN players p USING (telegram_user_id)
+       WHERE r.place = 1`,
+    )
+    .bind(JSON.stringify([...new Set(games)]), message.chat.id, message.message_id, sender.id)
+    .all<PreviousBest>();
+  return results;
 }
 
 // A score counts if it was posted after ?1 and its puzzle number is past anything
@@ -104,6 +154,53 @@ export async function playerTotals(db: D1Database, since: number, game: GameId |
     )
     .bind(since, game)
     .all<PlayerTotal>();
+  return results;
+}
+
+export interface MoodResult {
+  telegramUserId: number;
+  firstName: string;
+  lastName: string | null;
+  game: GameId;
+  timeSeconds: number;
+  /** The player's average on this game before today. */
+  usualSeconds: number;
+}
+
+/**
+ * Today's results (since `dayStart`) from players with at least `minHistory`
+ * results on the same game in the `historySeconds` before it, each with their
+ * average from then.
+ */
+export async function moodResults(
+  db: D1Database,
+  dayStart: number,
+  historySeconds: number,
+  minHistory: number,
+): Promise<MoodResult[]> {
+  const { results } = await db
+    .prepare(
+      `WITH history AS (
+         SELECT telegram_user_id, game, AVG(time_seconds) AS usual_seconds, COUNT(*) AS results
+         FROM scores
+         WHERE posted_at >= ?2 AND posted_at < ?1
+         GROUP BY telegram_user_id, game
+       )
+       SELECT s.telegram_user_id AS telegramUserId,
+              p.first_name       AS firstName,
+              p.last_name        AS lastName,
+              s.game,
+              s.time_seconds     AS timeSeconds,
+              h.usual_seconds    AS usualSeconds
+       FROM scores s
+       JOIN history h USING (telegram_user_id, game)
+       JOIN players p USING (telegram_user_id)
+       WHERE ${COUNTED_SINCE}
+         AND h.results >= ?3
+       ORDER BY s.posted_at, s.game`,
+    )
+    .bind(dayStart, dayStart - historySeconds, minHistory)
+    .all<MoodResult>();
   return results;
 }
 
@@ -183,6 +280,20 @@ export interface Player {
 export async function listPlayers(db: D1Database): Promise<Player[]> {
   const { results } = await db
     .prepare("SELECT telegram_user_id, username, first_name, last_name FROM players ORDER BY telegram_user_id")
+    .all<Player>();
+  return results;
+}
+
+/** Players who posted a score between `since` and `until`. */
+export async function activePlayers(db: D1Database, since: number, until: number): Promise<Player[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT telegram_user_id, username, first_name, last_name FROM players p
+       WHERE EXISTS (SELECT 1 FROM scores s
+                     WHERE s.telegram_user_id = p.telegram_user_id AND s.posted_at >= ?1 AND s.posted_at < ?2)
+       ORDER BY telegram_user_id`,
+    )
+    .bind(since, until)
     .all<Player>();
   return results;
 }
