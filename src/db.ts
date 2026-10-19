@@ -153,3 +153,73 @@ export async function isPlayer(db: D1Database, telegramUserId: number): Promise<
   const row = await db.prepare("SELECT 1 FROM players WHERE telegram_user_id = ?").bind(telegramUserId).first();
   return row !== null;
 }
+
+export interface PuzzleFirstPost {
+  game: string;
+  puzzle_number: number;
+  first_posted_at: number;
+}
+
+/** When each puzzle posted since `since` (unix seconds) was first posted. */
+export async function listPuzzleFirstPosts(db: D1Database, since: number): Promise<PuzzleFirstPost[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT game, puzzle_number, MIN(posted_at) AS first_posted_at
+       FROM scores WHERE posted_at >= ?
+       GROUP BY game, puzzle_number`,
+    )
+    .bind(since)
+    .all<PuzzleFirstPost>();
+  return results;
+}
+
+export interface Player {
+  telegram_user_id: number;
+  username: string | null;
+  first_name: string;
+  last_name: string | null;
+}
+
+export async function listPlayers(db: D1Database): Promise<Player[]> {
+  const { results } = await db
+    .prepare("SELECT telegram_user_id, username, first_name, last_name FROM players ORDER BY telegram_user_id")
+    .all<Player>();
+  return results;
+}
+
+/** Who posted which of these puzzles, as { telegram_user_id, game } rows. */
+export async function listPosters(
+  db: D1Database,
+  puzzles: { game: string; puzzleNumber: number }[],
+): Promise<{ telegram_user_id: number; game: string }[]> {
+  if (puzzles.length === 0) {
+    return [];
+  }
+  const { results } = await db
+    .prepare(
+      `SELECT telegram_user_id, game FROM scores
+       WHERE ${puzzles.map(() => "(game = ? AND puzzle_number = ?)").join(" OR ")}`,
+    )
+    .bind(...puzzles.flatMap(({ game, puzzleNumber }) => [game, puzzleNumber]))
+    .all<{ telegram_user_id: number; game: string }>();
+  return results;
+}
+
+/** Returns false if the player was already shamed for this puzzle day. */
+export async function recordShame(
+  db: D1Database,
+  userId: number,
+  puzzleDay: string,
+  missedGames: string[],
+  shamedAt: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO shames (telegram_user_id, puzzle_day, missed_games, shamed_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT (telegram_user_id, puzzle_day) DO NOTHING`,
+    )
+    .bind(userId, puzzleDay, missedGames.join(","), shamedAt)
+    .run();
+  return result.meta.changes > 0;
+}

@@ -24,6 +24,8 @@ Cloudflare cron triggers run on UTC, so [wrangler.jsonc](wrangler.jsonc) schedul
 
 Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
 
+Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now: everyone still missing some of today's results.
+
 ## Development
 
 Requires Node 24.
@@ -37,6 +39,8 @@ cp .dev.vars.example .dev.vars
 ```
 
 Then run `npm test`, `npm run typecheck` and `npm run smoke`. The smoke test starts `wrangler dev` and sends it real requests.
+
+To trigger the daily shame locally, start the Worker with `npm run dev -- --test-scheduled` and open `http://localhost:8787/__scheduled`. It always runs with the current time, so it only shames between 10:00 and 11:00 Finnish time. At any other time it logs `daily_shame_skipped`. The tests cover the timing.
 
 To try a fixture by hand, start the Worker with `npm run dev`, then:
 

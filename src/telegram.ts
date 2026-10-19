@@ -41,6 +41,8 @@ export interface Message {
 export interface ChatMember {
   status: "creator" | "administrator" | "member" | "restricted" | "left" | "kicked";
   user: User;
+  /** Only for "restricted": whether the user is still in the chat. */
+  is_member?: boolean;
 }
 
 export interface ChatMemberUpdated {

@@ -1,6 +1,7 @@
 import { isValidSecret } from "./auth";
 import { createBotApi } from "./bot-api";
 import { postWeeklyCrowning } from "./crowning";
+import { runDailyShame } from "./daily-shame";
 import { handleUpdate } from "./handler";
 import { PAGE_PATH, servePage, serveWeek, WEEK_PATH } from "./mini-app";
 import type { Update } from "./telegram";
@@ -9,6 +10,8 @@ import type { Update } from "./telegram";
 // main module as an entrypoint and refuses to start on anything else.
 const WEBHOOK_PATH = "/telegram/webhook";
 const SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
+// Must match the daily shame's cron in wrangler.jsonc; the others are the weekly crowning.
+const DAILY_SHAME_CRON = "0 7,8 * * *";
 
 export default {
   async fetch(request, env, ctx): Promise<Response> {
@@ -48,11 +51,15 @@ export default {
     return new Response(null, { status: 200 });
   },
 
-  // The only cron trigger is the weekly crowning (see wrangler.jsonc).
+  // Every cron trigger in wrangler.jsonc lands here. Each job also checks the
+  // Finnish time itself, since cron runs on UTC.
   async scheduled(controller, env, ctx): Promise<void> {
-    ctx.waitUntil(
-      postWeeklyCrowning(controller.scheduledTime, env, createBotApi(env.TELEGRAM_BOT_TOKEN)).catch(logProcessingError),
-    );
+    const bot = createBotApi(env.TELEGRAM_BOT_TOKEN);
+    const job =
+      controller.cron === DAILY_SHAME_CRON
+        ? runDailyShame(new Date(controller.scheduledTime), env, bot)
+        : postWeeklyCrowning(controller.scheduledTime, env, bot);
+    ctx.waitUntil(job.catch(logProcessingError));
   },
 } satisfies ExportedHandler<Env>;
 

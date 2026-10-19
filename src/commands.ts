@@ -1,8 +1,10 @@
+import type { BotApi } from "./bot-api";
 import { formatTurtle, formatWeekLeader } from "./crowning";
+import { findMissedResults, type MissedResults, toIsoDate } from "./daily-shame";
 import { type PlayerTotal, playerTotals, slowestRelativeScore } from "./db";
-import { displayNames, formatDuration, formatWeek } from "./format";
+import { displayNames, formatDuration, formatWeek, joinNames } from "./format";
 import { GAMES, type GameId } from "./parser";
-import { puzzleDayStart, puzzleWeek, type PuzzleWeek } from "./puzzle-day";
+import { puzzleDate, puzzleDayStart, puzzleWeek, type PuzzleWeek } from "./puzzle-day";
 
 export const BOT_USERNAME = "tangokuningatar_bot";
 
@@ -28,7 +30,13 @@ export function parseCommand(text: string): string | null {
 }
 
 /** Builds the reply to a command, or returns null for commands the bot doesn't have. */
-export async function runCommand(command: string, db: D1Database, nowSeconds: number): Promise<string | null> {
+export async function runCommand(
+  command: string,
+  db: D1Database,
+  nowSeconds: number,
+  bot: BotApi,
+  chatId: number,
+): Promise<string | null> {
   if (command === "today") {
     return formatLeaderboard("🏆 Today's leaderboard", await playerTotals(db, puzzleDayStart(nowSeconds)));
   }
@@ -45,12 +53,35 @@ export async function runCommand(command: string, db: D1Database, nowSeconds: nu
     const [totals, turtle] = await Promise.all([playerTotals(db, week.start), slowestRelativeScore(db, week.start)]);
     return formatTurtle(week, totals, turtle);
   }
+  if (command === "missing") {
+    const today = toIsoDate(puzzleDate(nowSeconds));
+    return formatMissing((await findMissedResults(db, bot, chatId, today, nowSeconds)).players);
+  }
   const game = WEEK_GAME_COMMANDS.get(command);
   if (game) {
     const week = puzzleWeek(nowSeconds);
     return formatLeaderboard(weekHeader(GAMES[game], week), await playerTotals(db, week.start, game));
   }
   return null;
+}
+
+/** The reply to /missing: who hasn't posted all of today's games yet, without pinging anyone. */
+export function formatMissing(missing: MissedResults["players"]): string {
+  if (missing.length === 0) {
+    return "✅ Everyone has posted all of today's results. Nobody gets shamed at 10:00!";
+  }
+  const names = displayNames(
+    missing.map(({ player }) => ({
+      telegramUserId: player.telegram_user_id,
+      firstName: player.first_name,
+      lastName: player.last_name,
+    })),
+  );
+  const lines = missing.map(({ player, missed }) => {
+    const games = missed.length === Object.keys(GAMES).length ? "nothing yet" : joinNames(missed.map((game) => GAMES[game]));
+    return `• ${names.get(player.telegram_user_id)}: ${games}`;
+  });
+  return ["🕵️ Still missing today's results:", "", ...lines, "", "Anything still missing at 10:00 gets shamed. 🔔"].join("\n");
 }
 
 function weekHeader(what: string, week: PuzzleWeek): string {

@@ -21,6 +21,11 @@ export function puzzleDayStart(nowSeconds: number): number {
   return toUnix(wallMidnight(nowSeconds));
 }
 
+/** The date of the puzzles current at that time, at midnight UTC: read it with getUTC*. */
+export function puzzleDate(nowSeconds: number): Date {
+  return new Date(wallMidnight(nowSeconds) * 1000);
+}
+
 export interface PuzzleWeek {
   /** When Saturday's puzzles were released, as unix seconds. */
   start: number;

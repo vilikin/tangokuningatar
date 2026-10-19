@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { formatLeaderboard, parseCommand } from "../src/commands";
 import type { PlayerTotal } from "../src/db";
 import { formatDuration } from "../src/format";
@@ -236,6 +236,70 @@ describe("/today", () => {
     expect(logged("error")).toEqual([
       expect.objectContaining({ event: "db_error", command: "today", error: expect.stringContaining("no such table: scores") }),
     ]);
+  });
+});
+
+describe("/missing", () => {
+  const TODAY = { Queens: 893, Tango: 693, Zip: 572, "Mini Sudoku": 300, Patches: 210, Wend: 40 };
+
+  /** Posts these games of today's puzzles (released at 07:00 UTC on 9 October). */
+  async function postToday(from: object, games: (keyof typeof TODAY)[]) {
+    const text = games.map((game) => `${game} #${TODAY[game]} | 1:00\nlnkd.in/x.`).join("\n\n");
+    await send(message(from, "2026-10-09T08:00:00Z", text));
+  }
+
+  /** Answers getChatMember with "left" for these users and "member" for everyone else. */
+  function mockMembers(leftIds: number[] = []) {
+    vi.mocked(globalThis.fetch).mockImplementation(async (input, init) => {
+      if (String(input).endsWith("/getChatMember")) {
+        const { user_id } = JSON.parse(String(init?.body)) as { user_id: number };
+        const status = leftIds.includes(user_id) ? "left" : "member";
+        return Response.json({ ok: true, result: { status, user: { id: user_id } } });
+      }
+      return Response.json({ ok: true, result: true });
+    });
+  }
+
+  it("lists who is still missing today's results, and which ones", async () => {
+    mockMembers();
+    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend"]);
+    await postToday(MIKKO, ["Queens", "Zip"]);
+    // Only yesterday's puzzle: nothing today.
+    await send(message(LIISA, "2026-10-09T05:00:00Z", "Queens #892\n2:00 👑\nlnkd.in/queens."));
+
+    await send(message(AINO, "2026-10-09T15:00:00Z", "/missing"));
+
+    expect(replies().at(-1)?.params).toMatchObject({
+      chat_id: OUR_GROUP,
+      text:
+        "🕵️ Still missing today's results:\n\n" +
+        "• Mikko: Tango, Mini Sudoku, Patches and Wend\n" +
+        "• Liisa: nothing yet\n\n" +
+        "Anything still missing at 10:00 gets shamed. 🔔",
+    });
+  });
+
+  it("leaves out people who have left the group", async () => {
+    mockMembers([LIISA.id]);
+    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend"]);
+    await send(message(LIISA, "2026-10-09T05:00:00Z", "Queens #892\n2:00 👑\nlnkd.in/queens."));
+
+    await send(message(AINO, "2026-10-09T15:00:00Z", "/missing"));
+
+    expect(replies().at(-1)?.params).toMatchObject({
+      text: "✅ Everyone has posted all of today's results. Nobody gets shamed at 10:00!",
+    });
+  });
+
+  it("doesn't ping anyone or send the GIF", async () => {
+    mockMembers();
+    await postToday(MIKKO, ["Queens"]);
+
+    await send(message(AINO, "2026-10-09T15:00:00Z", "/missing"));
+
+    const methods = telegramCalls().map(({ method }) => method);
+    expect(methods).not.toContain("sendAnimation");
+    expect(replies().at(-1)?.params).not.toHaveProperty("parse_mode");
   });
 });
 

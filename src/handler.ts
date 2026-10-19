@@ -108,7 +108,7 @@ async function handleMessage(
 async function handleCommand(update: Update, message: Message, command: string, db: D1Database, bot: BotApi): Promise<void> {
   let reply: string | null;
   try {
-    reply = await runCommand(command, db, message.date);
+    reply = await runCommand(command, db, message.date, bot, message.chat.id);
   } catch (error) {
     console.error({ event: "db_error", update_id: update.update_id, command, error: String(error) });
     return;
