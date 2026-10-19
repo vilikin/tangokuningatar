@@ -1,4 +1,5 @@
 import type { BotApi } from "./bot-api";
+import { parseCommand, runCommand } from "./commands";
 import { saveScores } from "./db";
 import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import type { Chat, ChatMemberUpdated, Message, Update, User } from "./telegram";
@@ -11,7 +12,8 @@ export const SHAME_REACTION = "👎";
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
  * in full, and only scores posted there are saved and get a 👍. Pinpoint and
  * Crossclimb results get a 👎 and a shaming reply. Anything else gets a single
- * metadata line without message content.
+ * metadata line without message content. Commands (e.g. /today) are answered
+ * with a reply in our group only.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
   const allowedChatId = env.ALLOWED_CHAT_ID?.trim();
@@ -63,6 +65,12 @@ async function handleMessage(
   }
 
   const text = message.text ?? message.caption ?? null;
+  const command = text ? parseCommand(text) : null;
+  if (command) {
+    await handleCommand(update, message, command, db, bot);
+    return;
+  }
+
   const scores = text ? parseScores(text) : [];
   const shamefulGames = text ? findShamefulGames(text) : [];
   console.log({
@@ -89,6 +97,27 @@ async function handleMessage(
     ]);
   } else if (stored) {
     await settle(update, [bot.setMessageReaction(message.chat.id, message.message_id, SCORE_REACTION)]);
+  }
+}
+
+async function handleCommand(update: Update, message: Message, command: string, db: D1Database, bot: BotApi): Promise<void> {
+  let reply: string | null;
+  try {
+    reply = await runCommand(command, db, message.date);
+  } catch (error) {
+    console.error({ event: "db_error", update_id: update.update_id, command, error: String(error) });
+    return;
+  }
+  console.log({
+    event: "command",
+    update_id: update.update_id,
+    message_id: message.message_id,
+    command,
+    known: reply !== null,
+    ...describeSender(message.from),
+  });
+  if (reply !== null) {
+    await settle(update, [bot.replyTo(message.chat.id, message.message_id, reply)]);
   }
 }
 

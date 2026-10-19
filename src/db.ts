@@ -51,3 +51,42 @@ export async function saveScores(db: D1Database, message: Message, sender: User,
   const saved = results.filter((result) => result.meta.changes > 0).length;
   return { saved, duplicates: scores.length - saved };
 }
+
+export interface PlayerTotal {
+  telegramUserId: number;
+  firstName: string;
+  lastName: string | null;
+  games: number;
+  totalSeconds: number;
+}
+
+/**
+ * Each player's combined time over today's puzzles, best first: more games
+ * played ranks higher, then lower total time.
+ *
+ * A puzzle is today's if it was posted after `dayStart` and its number is past
+ * anything posted for that game before then. That leaves out yesterday's puzzle
+ * when someone posts it late.
+ */
+export async function todaysTotals(db: D1Database, dayStart: number): Promise<PlayerTotal[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT p.telegram_user_id AS telegramUserId,
+              p.first_name       AS firstName,
+              p.last_name        AS lastName,
+              COUNT(*)           AS games,
+              SUM(s.time_seconds) AS totalSeconds
+       FROM scores s
+       JOIN players p USING (telegram_user_id)
+       WHERE s.posted_at >= ?1
+         AND s.puzzle_number > COALESCE(
+               (SELECT MAX(earlier.puzzle_number) FROM scores earlier
+                WHERE earlier.game = s.game AND earlier.posted_at < ?1),
+               -1)
+       GROUP BY s.telegram_user_id
+       ORDER BY games DESC, totalSeconds ASC, MIN(s.posted_at) ASC`,
+    )
+    .bind(dayStart)
+    .all<PlayerTotal>();
+  return results;
+}
