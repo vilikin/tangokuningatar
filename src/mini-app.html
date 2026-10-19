@@ -141,8 +141,7 @@
     content: ""; position: absolute; top: 0; right: 0; left: 96px; height: 1px; background: var(--separator);
   }
   .row.you { background: color-mix(in srgb, var(--accent) 11%, transparent); }
-  .row .rank { width: 28px; text-align: center; font-size: 15px; font-weight: 700; color: var(--hint); flex: none; }
-  .row .rank.medal { font-size: 22px; }
+  .row .rank { width: 28px; text-align: center; font-size: 22px; line-height: 1; flex: none; }
   .row .who { flex: 1; min-width: 0; }
   .row .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .row .games { font-size: 13px; }
@@ -157,7 +156,6 @@
   .message .title { font-size: 17px; font-weight: 700; margin-top: 12px; }
   .message .body { margin-top: 4px; }
 
-  .footnote { font-size: 13px; text-align: center; margin: 18px 12px 0; }
   .not-on-board { font-size: 13px; text-align: center; margin: 12px 4px 0; }
 
   /* Loading */
@@ -198,6 +196,7 @@
 
   const DAY_LABELS = ["S", "S", "M", "T", "W", "T", "F"];
   const MEDALS = ["🥇", "🥈", "🥉"];
+  const BELOW_PODIUM = "🐢"; // as in /week
   const main = document.getElementById("main");
   let data = null;
   let selected = "all";
@@ -309,9 +308,7 @@
         content.push(h("section", { class: "card", "aria-label": "Everyone else" },
           h("ol", { class: "rows" }, ...rest.map((standing, i) =>
             h("li", { class: "row" + (standing.you ? " you" : ""), style: "--i: " + i },
-              standing.rank <= 3
-                ? h("div", { class: "rank medal", text: MEDALS[standing.rank - 1] })
-                : h("div", { class: "rank num", text: String(standing.rank) }),
+              h("div", { class: "rank", text: MEDALS[standing.rank - 1] ?? BELOW_PODIUM }),
               avatar(standing.name),
               h("div", { class: "who" },
                 h("div", { class: "name" }, standing.name, youTag(standing)),
@@ -325,7 +322,6 @@
         }));
       }
     }
-    content.push(h("p", { class: "footnote hint", text: "More games ranks higher, then the lower total time. Same as /week." }));
     main.replaceChildren(h("div", { class: "board" }, ...content));
   }
 
