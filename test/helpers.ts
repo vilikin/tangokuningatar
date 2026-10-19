@@ -81,3 +81,32 @@ export async function savedPlayers(): Promise<Record<string, unknown>[]> {
   const { results } = await env.DB.prepare("SELECT * FROM players ORDER BY telegram_user_id").all();
   return results;
 }
+
+export const TEST_BOT_TOKEN = "test-bot-token";
+
+/** Mini App initData signed the way Telegram signs it, with `token` (the test bot token by default). */
+export async function signInitData(fields: Record<string, string>, token = TEST_BOT_TOKEN): Promise<string> {
+  const encoder = new TextEncoder();
+  const hmac = async (key: BufferSource, data: string) =>
+    crypto.subtle.sign(
+      "HMAC",
+      await crypto.subtle.importKey("raw", key, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]),
+      encoder.encode(data),
+    );
+  const dataCheckString = Object.keys(fields)
+    .sort()
+    .map((key) => `${key}=${fields[key]}`)
+    .join("\n");
+  const hash = await hmac(await hmac(encoder.encode("WebAppData"), token), dataCheckString);
+  const hex = [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return new URLSearchParams({ ...fields, hash: hex }).toString();
+}
+
+/** A GET to the Worker, e.g. the Mini App page or its API. */
+export async function get(path: string, headers: HeadersInit = {}, envOverrides: Partial<Env> = {}): Promise<Response> {
+  const request = new Request(`${ORIGIN}${path}`, { headers });
+  const ctx = createExecutionContext();
+  const response = await worker.fetch(request as Parameters<typeof worker.fetch>[0], { ...env, ...envOverrides }, ctx);
+  await waitOnExecutionContext(ctx);
+  return response;
+}

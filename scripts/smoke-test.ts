@@ -8,7 +8,8 @@ import { readFile } from "node:fs/promises";
 
 const PORT = 8788;
 const SECRET = "smoke-test-secret";
-const WEBHOOK_URL = `http://localhost:${PORT}/telegram/webhook`;
+const ORIGIN = `http://localhost:${PORT}`;
+const WEBHOOK_URL = `${ORIGIN}/telegram/webhook`;
 const STARTUP_TIMEOUT_MS = 30_000;
 
 execFileSync("npx", ["wrangler", "d1", "migrations", "apply", "DB", "--local"], { stdio: "inherit" });
@@ -70,6 +71,8 @@ try {
   expectStatus("valid secret", (await post(SECRET, update)).status, 200);
   expectStatus("wrong secret", (await post("wrong", update)).status, 401);
   expectStatus("GET", (await fetch(WEBHOOK_URL)).status, 405);
+  expectStatus("Mini App page", (await fetch(`${ORIGIN}/app`)).status, 200);
+  expectStatus("Mini App API without initData", (await fetch(`${ORIGIN}/api/my-scores`)).status, 401);
 } catch (error) {
   console.error(`✘ ${error instanceof Error ? error.message : error}`);
   process.exitCode = 1;
