@@ -1,43 +1,62 @@
-import { type PlayerTotal, todaysTotals } from "./db";
-import { puzzleDayStart } from "./puzzle-day";
+import { type PlayerTotal, playerTotals } from "./db";
+import { GAMES, type GameId } from "./parser";
+import { puzzleDayStart, puzzleWeek, type PuzzleWeek } from "./puzzle-day";
 
 export const BOT_USERNAME = "tangokuningatar_bot";
 
 // `/today`, or `/today@tangokuningatar_bot` when picked from the menu in a group.
-const COMMAND = /^\/([a-z0-9_]+)(?:@(\w+))?(?:\s|$)/i;
+// Telegram command names can't contain hyphens, but `/week-zip` typed by hand works too.
+const COMMAND = /^\/([a-z0-9_-]+)(?:@(\w+))?(?:\s|$)/i;
 
-/** The command a message starts with, lowercased, unless it's addressed to another bot. */
+/** `week_zip`, `week_mini_sudoku`, …: one per game. */
+const WEEK_GAME_COMMANDS = new Map(
+  (Object.keys(GAMES) as GameId[]).map((game) => [`week_${game.replaceAll("-", "_")}`, game]),
+);
+
+/**
+ * The command a message starts with, lowercased and with hyphens as underscores,
+ * unless it's addressed to another bot.
+ */
 export function parseCommand(text: string): string | null {
   const match = COMMAND.exec(text.trim());
   if (!match || (match[2] !== undefined && match[2].toLowerCase() !== BOT_USERNAME)) {
     return null;
   }
-  return match[1]!.toLowerCase();
+  return match[1]!.toLowerCase().replaceAll("-", "_");
 }
 
 /** Builds the reply to a command, or returns null for commands the bot doesn't have. */
 export async function runCommand(command: string, db: D1Database, nowSeconds: number): Promise<string | null> {
-  switch (command) {
-    case "today":
-      return formatLeaderboard(await todaysTotals(db, puzzleDayStart(nowSeconds)));
-    default:
-      return null;
+  if (command === "today") {
+    return formatLeaderboard("🏆 Today's leaderboard", await playerTotals(db, puzzleDayStart(nowSeconds)));
   }
+  if (command === "week") {
+    const week = puzzleWeek(nowSeconds);
+    return formatLeaderboard(weekHeader("all games", week), await playerTotals(db, week.start));
+  }
+  const game = WEEK_GAME_COMMANDS.get(command);
+  if (game) {
+    const week = puzzleWeek(nowSeconds);
+    return formatLeaderboard(weekHeader(GAMES[game], week), await playerTotals(db, week.start, game));
+  }
+  return null;
+}
+
+function weekHeader(what: string, week: PuzzleWeek): string {
+  return `🏆 This week's leaderboard: ${what}\nWeek is Sat–Fri: ${formatDate("Sat", week.saturday)} – ${formatDate("Fri", week.friday)}`;
+}
+
+/** Sat 17.10. */
+function formatDate(weekday: string, date: Date): string {
+  return `${weekday} ${date.getUTCDate()}.${date.getUTCMonth() + 1}.`;
 }
 
 const MEDALS = ["🥇", "🥈", "🥉"];
+const BELOW_PODIUM = "🐢";
 
-/** Medals for the top three, then keycap numbers: 4️⃣ … 🔟, 1️⃣1️⃣ … */
-export function rankEmoji(rank: number): string {
-  if (rank <= MEDALS.length) {
-    return MEDALS[rank - 1]!;
-  }
-  return rank === 10 ? "🔟" : [...String(rank)].map((digit) => `${digit}\uFE0F\u20E3`).join("");
-}
-
-export function formatLeaderboard(totals: PlayerTotal[]): string {
+export function formatLeaderboard(header: string, totals: PlayerTotal[]): string {
   if (totals.length === 0) {
-    return "No scores today yet. Get puzzling! 🧩";
+    return `${header}\n\nNo scores yet. Get puzzling! 🧩`;
   }
   const names = displayNames(totals);
   let rank = 0;
@@ -48,9 +67,9 @@ export function formatLeaderboard(totals: PlayerTotal[]): string {
       rank = i + 1;
     }
     const games = total.games === 1 ? "1 game" : `${total.games} games`;
-    return `${rankEmoji(rank)} ${names.get(total.telegramUserId)}: ${formatDuration(total.totalSeconds)} (${games})`;
+    return `${MEDALS[rank - 1] ?? BELOW_PODIUM} ${names.get(total.telegramUserId)}: ${formatDuration(total.totalSeconds)} (${games})`;
   });
-  return ["🏆 Today's leaderboard", "", ...lines].join("\n");
+  return [header, "", ...lines].join("\n");
 }
 
 /** First names, with the last name added for players who share one. */

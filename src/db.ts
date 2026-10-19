@@ -1,4 +1,4 @@
-import type { Score } from "./parser";
+import type { GameId, Score } from "./parser";
 import type { Message, User } from "./telegram";
 
 export interface SaveResult {
@@ -61,14 +61,15 @@ export interface PlayerTotal {
 }
 
 /**
- * Each player's combined time over today's puzzles, best first: more games
- * played ranks higher, then lower total time.
+ * Each player's combined time over the puzzles released since `since` (of one
+ * game, or all of them), best first: more games played ranks higher, then lower
+ * total time.
  *
- * A puzzle is today's if it was posted after `dayStart` and its number is past
- * anything posted for that game before then. That leaves out yesterday's puzzle
- * when someone posts it late.
+ * A puzzle counts if it was posted after `since` and its number is past anything
+ * posted for that game before then. That leaves out an older puzzle someone
+ * posts late.
  */
-export async function todaysTotals(db: D1Database, dayStart: number): Promise<PlayerTotal[]> {
+export async function playerTotals(db: D1Database, since: number, game: GameId | null = null): Promise<PlayerTotal[]> {
   const { results } = await db
     .prepare(
       `SELECT p.telegram_user_id AS telegramUserId,
@@ -79,6 +80,7 @@ export async function todaysTotals(db: D1Database, dayStart: number): Promise<Pl
        FROM scores s
        JOIN players p USING (telegram_user_id)
        WHERE s.posted_at >= ?1
+         AND (?2 IS NULL OR s.game = ?2)
          AND s.puzzle_number > COALESCE(
                (SELECT MAX(earlier.puzzle_number) FROM scores earlier
                 WHERE earlier.game = s.game AND earlier.posted_at < ?1),
@@ -86,7 +88,7 @@ export async function todaysTotals(db: D1Database, dayStart: number): Promise<Pl
        GROUP BY s.telegram_user_id
        ORDER BY games DESC, totalSeconds ASC, MIN(s.posted_at) ASC`,
     )
-    .bind(dayStart)
+    .bind(since, game)
     .all<PlayerTotal>();
   return results;
 }

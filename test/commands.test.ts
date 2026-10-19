@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { formatDuration, formatLeaderboard, parseCommand, rankEmoji } from "../src/commands";
+import { formatDuration, formatLeaderboard, parseCommand } from "../src/commands";
 import type { PlayerTotal } from "../src/db";
-import { puzzleDayStart } from "../src/puzzle-day";
+import { puzzleDayStart, puzzleWeek } from "../src/puzzle-day";
 import groupChatMessage from "./fixtures/group-chat-message.json";
 import groupScore from "./fixtures/group-score-message.json";
 import otherGroupMessage from "./fixtures/other-group-message.json";
@@ -36,6 +36,9 @@ describe("parseCommand", () => {
     ["/Today@TangoKuningatar_Bot please", "today"],
     ["  /today\n", "today"],
     ["/nope", "nope"],
+    ["/week_zip", "week_zip"],
+    ["/week-zip", "week_zip"],
+    ["/week-mini-sudoku@tangokuningatar_bot", "week_mini_sudoku"],
   ])("reads %j as %j", (text, expected) => {
     expect(parseCommand(text)).toBe(expected);
   });
@@ -61,7 +64,30 @@ describe("puzzleDayStart", () => {
   });
 });
 
+describe("puzzleWeek", () => {
+  it.each([
+    // 2026-10-17 is a Saturday.
+    ["2026-10-17T07:00:00Z", "2026-10-17T07:00:00Z", "2026-10-17", "2026-10-23"],
+    ["2026-10-19T12:00:00Z", "2026-10-17T07:00:00Z", "2026-10-17", "2026-10-23"],
+    // Friday's puzzles are out until 10:00 on Saturday in Finland.
+    ["2026-10-24T06:59:59Z", "2026-10-17T07:00:00Z", "2026-10-17", "2026-10-23"],
+    ["2026-10-24T07:00:00Z", "2026-10-24T07:00:00Z", "2026-10-24", "2026-10-30"],
+    // DST ends on Sunday 2026-11-01: the week started on summer time.
+    ["2026-11-05T12:00:00Z", "2026-10-31T07:00:00Z", "2026-10-31", "2026-11-06"],
+    // Across a year boundary.
+    ["2027-01-01T12:00:00Z", "2026-12-26T08:00:00Z", "2026-12-26", "2027-01-01"],
+  ])("at %s starts at %s and runs %s to %s", (now, start, saturday, friday) => {
+    expect(puzzleWeek(at(now))).toEqual({
+      start: at(start),
+      saturday: new Date(`${saturday}T00:00:00Z`),
+      friday: new Date(`${friday}T00:00:00Z`),
+    });
+  });
+});
+
 describe("formatLeaderboard", () => {
+  const HEADER = "🏆 Today's leaderboard";
+
   const total = (firstName: string, games: number, totalSeconds: number, lastName: string | null = null): PlayerTotal => ({
     telegramUserId: firstName.length * 1000 + totalSeconds + (lastName?.length ?? 0),
     firstName,
@@ -70,42 +96,34 @@ describe("formatLeaderboard", () => {
     totalSeconds,
   });
 
-  it("gives medals to the top three and keycap numbers to the rest", () => {
+  it("gives medals to the top three and turtles to the rest", () => {
     expect(
-      formatLeaderboard([total("Aino", 3, 95), total("Mikko", 3, 130), total("Liisa", 2, 50), total("Pekka", 1, 3725)]),
+      formatLeaderboard(HEADER, [
+        total("Aino", 3, 95),
+        total("Mikko", 3, 130),
+        total("Liisa", 2, 50),
+        total("Pekka", 1, 3725),
+        total("Sanna", 1, 3800),
+      ]),
     ).toBe(
-      "🏆 Today's leaderboard\n\n🥇 Aino: 1:35 (3 games)\n🥈 Mikko: 2:10 (3 games)\n🥉 Liisa: 0:50 (2 games)\n4️⃣ Pekka: 1:02:05 (1 game)",
+      "🏆 Today's leaderboard\n\n🥇 Aino: 1:35 (3 games)\n🥈 Mikko: 2:10 (3 games)\n🥉 Liisa: 0:50 (2 games)\n🐢 Pekka: 1:02:05 (1 game)\n🐢 Sanna: 1:03:20 (1 game)",
     );
   });
 
   it("shares a rank between exact ties", () => {
-    expect(formatLeaderboard([total("Aino", 2, 60), total("Mikko", 2, 60), total("Liisa", 2, 61)])).toBe(
+    expect(formatLeaderboard(HEADER, [total("Aino", 2, 60), total("Mikko", 2, 60), total("Liisa", 2, 61)])).toBe(
       "🏆 Today's leaderboard\n\n🥇 Aino: 1:00 (2 games)\n🥇 Mikko: 1:00 (2 games)\n🥉 Liisa: 1:01 (2 games)",
     );
   });
 
   it("tells players apart by last name when they share a first name", () => {
-    expect(formatLeaderboard([total("Aino", 1, 60, "Virtanen"), total("Aino", 1, 70, "Korhonen"), total("Mikko", 1, 80)])).toContain(
+    expect(formatLeaderboard(HEADER, [total("Aino", 1, 60, "Virtanen"), total("Aino", 1, 70, "Korhonen"), total("Mikko", 1, 80)])).toContain(
       "🥇 Aino Virtanen: 1:00 (1 game)\n🥈 Aino Korhonen: 1:10 (1 game)\n🥉 Mikko: 1:20 (1 game)",
     );
   });
 
   it("says so when nobody has played", () => {
-    expect(formatLeaderboard([])).toBe("No scores today yet. Get puzzling! 🧩");
-  });
-});
-
-describe("rankEmoji", () => {
-  it.each([
-    [1, "🥇"],
-    [3, "🥉"],
-    [4, "4️⃣"],
-    [9, "9️⃣"],
-    [10, "🔟"],
-    [11, "1️⃣1️⃣"],
-    [20, "2️⃣0️⃣"],
-  ])("shows place %i as %s", (rank, expected) => {
-    expect(rankEmoji(rank)).toBe(expected);
+    expect(formatLeaderboard(HEADER, [])).toBe("🏆 Today's leaderboard\n\nNo scores yet. Get puzzling! 🧩");
   });
 });
 
@@ -179,17 +197,18 @@ describe("/today", () => {
     await send(message(AINO, "2026-10-09T15:00:00Z", "/today@tangokuningatar_bot"));
 
     expect(replies()).toEqual([
-      expect.objectContaining({ params: expect.objectContaining({ text: "No scores today yet. Get puzzling! 🧩" }) }),
+      expect.objectContaining({ params: expect.objectContaining({ text: "🏆 Today's leaderboard\n\nNo scores yet. Get puzzling! 🧩" }) }),
     ]);
   });
 
   it("ignores commands for other bots and commands it doesn't have", async () => {
     await send(message(AINO, "2026-10-09T15:00:00Z", "/today@some_other_bot"));
-    const unknown = message(AINO, "2026-10-09T15:00:00Z", "/yesterday");
-    await send(unknown);
+    await send(message(AINO, "2026-10-09T15:00:00Z", "/yesterday"));
+    await send(message(AINO, "2026-10-09T15:00:00Z", "/week_pinpoint"));
 
     expect(telegramCalls()).toEqual([]);
     expect(logged("log")).toContainEqual(expect.objectContaining({ event: "command", command: "yesterday", known: false }));
+    expect(logged("log")).toContainEqual(expect.objectContaining({ event: "command", command: "week_pinpoint", known: false }));
   });
 
   it("doesn't save scores from a command message", async () => {
@@ -216,5 +235,69 @@ describe("/today", () => {
     expect(logged("error")).toEqual([
       expect.objectContaining({ event: "db_error", command: "today", error: expect.stringContaining("no such table: scores") }),
     ]);
+  });
+});
+
+describe("/week", () => {
+  const WEEK = "Week is Sat–Fri: Sat 17.10. – Fri 23.10.";
+
+  async function postWeek() {
+    // Last week's Friday puzzle, posted before Saturday's came out at 07:00 UTC.
+    await send(message(MIKKO, "2026-10-17T06:00:00Z", "Zip #571 | 0:10 🏁\nlnkd.in/zip."));
+    // Saturday.
+    await send(message(AINO, "2026-10-17T08:00:00Z", "Zip #572 | 0:30 🏁\nlnkd.in/zip.\n\nQueens #894\n1:00 👑\nlnkd.in/queens."));
+    await send(message(MIKKO, "2026-10-17T09:00:00Z", "Zip #572 | 0:20 🏁\nlnkd.in/zip.\n\nQueens #894\n0:50 👑\nlnkd.in/queens."));
+    await send(message(LIISA, "2026-10-17T10:00:00Z", "Zip #572 | 0:25 🏁\nlnkd.in/zip."));
+    // Last week's Friday puzzle posted late: doesn't count this week.
+    await send(message(LIISA, "2026-10-17T10:05:00Z", "Zip #571 | 0:05 🏁\nlnkd.in/zip."));
+    // Sunday.
+    await send(message(AINO, "2026-10-18T08:00:00Z", "Zip #573 | 0:40 🏁\nlnkd.in/zip."));
+    await send(message(LIISA, "2026-10-18T09:00:00Z", "Zip #573 | 0:35 🏁\nlnkd.in/zip."));
+  }
+
+  it("adds up all games of the week", async () => {
+    await postWeek();
+    const command = message(MIKKO, "2026-10-19T12:00:00Z", "/week");
+
+    await send(command);
+
+    expect(replies().at(-1)?.params).toEqual({
+      chat_id: OUR_GROUP,
+      text: `🏆 This week's leaderboard: all games\n${WEEK}\n\n🥇 Aino: 2:10 (3 games)\n🥈 Liisa: 1:00 (2 games)\n🥉 Mikko: 1:10 (2 games)`,
+      reply_parameters: { message_id: command.message.message_id },
+      link_preview_options: { is_disabled: true },
+    });
+  });
+
+  it.each(["/week_zip", "/week-zip", "/week_zip@tangokuningatar_bot"])("adds up one game's week with %s", async (text) => {
+    await postWeek();
+
+    await send(message(MIKKO, "2026-10-19T12:00:00Z", text));
+
+    expect(replies().at(-1)?.params).toMatchObject({
+      text: `🏆 This week's leaderboard: Zip\n${WEEK}\n\n🥇 Liisa: 1:00 (2 games)\n🥈 Aino: 1:10 (2 games)\n🥉 Mikko: 0:20 (1 game)`,
+    });
+  });
+
+  it("names the game in the header", async () => {
+    await postWeek();
+
+    await send(message(MIKKO, "2026-10-19T12:00:00Z", "/week_queens"));
+    await send(message(MIKKO, "2026-10-19T12:00:00Z", "/week_mini_sudoku"));
+
+    expect(replies().slice(-2).map(({ params }) => (params as { text: string }).text)).toEqual([
+      `🏆 This week's leaderboard: Queens\n${WEEK}\n\n🥇 Mikko: 0:50 (1 game)\n🥈 Aino: 1:00 (1 game)`,
+      `🏆 This week's leaderboard: Mini Sudoku\n${WEEK}\n\nNo scores yet. Get puzzling! 🧩`,
+    ]);
+  });
+
+  it("starts over on Saturday when the new puzzles are out", async () => {
+    await postWeek();
+
+    await send(message(MIKKO, "2026-10-24T07:00:00Z", "/week"));
+
+    expect(replies().at(-1)?.params).toMatchObject({
+      text: "🏆 This week's leaderboard: all games\nWeek is Sat–Fri: Sat 24.10. – Fri 30.10.\n\nNo scores yet. Get puzzling! 🧩",
+    });
   });
 });
