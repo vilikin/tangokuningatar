@@ -1,6 +1,6 @@
 import type { BotApi } from "./bot-api";
 import { parseCommand, runCommand } from "./commands";
-import { previousBests, saveScores, type SaveResult } from "./db";
+import { previousBests, recordSnitchedEdit, saveScores, type SaveResult } from "./db";
 import { joinNames } from "./format";
 import { findShamefulGames, GAMES, parseScores, SHAMEFUL_GAMES, type Score, type ShamefulGameId } from "./parser";
 import { findHighlights, formatRecords, type Highlights } from "./records";
@@ -13,12 +13,17 @@ export const PERSONAL_BEST_REACTION = "🔥";
 // The sender already had a result for that puzzle, so this one doesn't count.
 export const DUPLICATE_REACTION = "🤨";
 export const SHAME_REACTION = "👎";
+// Someone edited a message that already had a score saved from it.
+export const EDIT_REACTION = "🤡";
+export const EDIT_REPLY = "🤡 We saw that. The first version still counts.";
 
 /**
  * Handles an authenticated update. Only updates from ALLOWED_CHAT_ID are logged
  * in full, and only scores posted there are saved and get a 👍, a 🔥 for a
  * personal best, or a 🤨 if they were all posted before. A new group record also
- * gets a reply. Pinpoint and Crossclimb results get a 👎 and a shaming reply. Anything else gets a single metadata line without message
+ * gets a reply. Pinpoint and Crossclimb results get a 👎 and a shaming reply.
+ * Editing a message that had a score gets a 🤡 and a reply, once per message;
+ * the score from the first version stays. Anything else gets a single metadata line without message
  * content. Commands (e.g. /today) are answered with a reply in our group only.
  */
 export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promise<void> {
@@ -34,6 +39,8 @@ export async function handleUpdate(update: Update, env: Env, bot: BotApi): Promi
 
   if (update.message) {
     await handleMessage(update, update.message, allowedChatId, env.DB, bot);
+  } else if (update.edited_message) {
+    await handleEditedMessage(update, update.edited_message, allowedChatId, env.DB, bot);
   } else if (update.my_chat_member) {
     handleMyChatMember(update, update.my_chat_member, allowedChatId);
   } else {
@@ -115,6 +122,45 @@ async function handleMessage(
   if (stored && stored.highlights.records.length > 0) {
     const text = formatRecords(stored.highlights.records, message.from!.id, message.from!.first_name);
     await settle(update, [bot.replyTo(message.chat.id, message.message_id, text)]);
+  }
+}
+
+/** Edits never change a saved score, but they don't go unnoticed. */
+async function handleEditedMessage(
+  update: Update,
+  message: Message,
+  allowedChatId: string,
+  db: D1Database,
+  bot: BotApi,
+): Promise<void> {
+  if (String(message.chat.id) !== allowedChatId) {
+    logIgnored(update, "edited_message", message.chat);
+    return;
+  }
+  if (!message.from) {
+    return;
+  }
+
+  let snitch: boolean;
+  try {
+    snitch = await recordSnitchedEdit(db, message.from.id, message.chat.id, message.message_id, message.edit_date ?? message.date);
+  } catch (error) {
+    console.error({ event: "db_error", update_id: update.update_id, error: String(error) });
+    return;
+  }
+  console.log({
+    event: "message_edited",
+    update_id: update.update_id,
+    message_id: message.message_id,
+    ...describeSender(message.from),
+    text: message.text ?? message.caption ?? null,
+    snitched: snitch,
+  });
+  if (snitch) {
+    await settle(update, [
+      bot.setMessageReaction(message.chat.id, message.message_id, EDIT_REACTION),
+      bot.replyTo(message.chat.id, message.message_id, EDIT_REPLY),
+    ]);
   }
 }
 

@@ -9,7 +9,7 @@
 // the environment. Never prints either of them.
 
 const WEBHOOK_PATH = "/telegram/webhook";
-const ALLOWED_UPDATES = ["message", "my_chat_member"];
+const ALLOWED_UPDATES = ["message", "edited_message", "my_chat_member"];
 // The menu Telegram shows when typing "/". Keep in sync with runCommand in src/commands.ts.
 // Command names may only contain lowercase letters, digits and underscores.
 const WEEK_GAMES = { queens: "Queens", tango: "Tango", zip: "Zip", mini_sudoku: "Mini Sudoku", patches: "Patches", wend: "Wend" };

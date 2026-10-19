@@ -323,6 +323,73 @@ describe("shaming Pinpoint and Crossclimb", () => {
   });
 });
 
+describe("edited messages", () => {
+  /** The fixture score message, edited to say `text`. */
+  function edited(text: string, updateId = 701234560) {
+    return { update_id: updateId, edited_message: { ...groupScore.message, entities: [], edit_date: groupScore.message.date + 60, text } };
+  }
+
+  it("keeps the first score, and calls the edit out with a 🤡", async () => {
+    await send(groupScore);
+
+    await send(edited("Patches #206 | 0:09 🧶\nlnkd.in/patches."));
+
+    expect(await savedScores()).toEqual([expect.objectContaining({ puzzle_number: 206, time_seconds: 29, message_text: groupScore.message.text })]);
+    expect(telegramCalls().slice(1)).toEqual([
+      {
+        method: "setMessageReaction",
+        params: { chat_id: OUR_GROUP, message_id: 901042, reaction: [{ type: "emoji", emoji: "🤡" }] },
+      },
+      {
+        method: "sendMessage",
+        params: {
+          chat_id: OUR_GROUP,
+          text: "🤡 We saw that. The first version still counts.",
+          reply_parameters: { message_id: 901042 },
+          link_preview_options: { is_disabled: true },
+        },
+      },
+    ]);
+    expect(logged("log")).toContainEqual(
+      expect.objectContaining({ event: "message_edited", message_id: 901042, from_id: AINO.id, snitched: true }),
+    );
+  });
+
+  it("only calls it out once per message", async () => {
+    await send(groupScore);
+    await send(edited("Patches #206 | 0:09 🧶", 701234561));
+
+    await send(edited("Patches #206 | 0:05 🧶", 701234562));
+
+    expect(telegramCalls()).toHaveLength(3);
+    expect(logged("log").at(-1)).toEqual(expect.objectContaining({ event: "message_edited", snitched: false }));
+  });
+
+  it("lets edits to ordinary chat slide", async () => {
+    await send(groupChatMessage);
+
+    await send({ update_id: 701234563, edited_message: { ...groupChatMessage.message, text: "typo fixed" } });
+
+    expect(telegramCalls()).toEqual([]);
+  });
+
+  it("doesn't count a score added by an edit", async () => {
+    await send(groupChatMessage);
+
+    await send({ update_id: 701234564, edited_message: { ...groupChatMessage.message, text: "Zip #572 | 0:01 🏁" } });
+
+    expect(await savedScores()).toEqual([]);
+    expect(telegramCalls()).toEqual([]);
+  });
+
+  it("ignores edits in other chats", async () => {
+    await send({ update_id: 701234565, edited_message: { ...otherGroupMessage.message, edit_date: 1791522800 } });
+
+    expect(logged("log")).toEqual([expect.objectContaining({ event: "ignored_update", kind: "edited_message" })]);
+    expect(telegramCalls()).toEqual([]);
+  });
+});
+
 describe("chat allowlist", () => {
   it.each([
     ["a private chat", privateMessage, "private"],
@@ -378,10 +445,10 @@ describe("chat allowlist", () => {
   });
 
   it("ignores update types it doesn't handle", async () => {
-    await send({ update_id: 701234599, edited_message: groupScore.message });
+    await send({ update_id: 701234599, edited_channel_post: groupScore.message });
 
     expect(logged("log")).toEqual([
-      expect.objectContaining({ event: "ignored_update", reason: "unsupported update type", fields: ["update_id", "edited_message"] }),
+      expect.objectContaining({ event: "ignored_update", reason: "unsupported update type", fields: ["update_id", "edited_channel_post"] }),
     ]);
     expect(allLogOutput()).not.toContain(groupScore.message.text);
     expect(telegramCalls()).toEqual([]);

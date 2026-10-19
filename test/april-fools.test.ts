@@ -22,8 +22,13 @@ function message(from: object, iso: string, text: string) {
   };
 }
 
+// Bot API calls made while posting the week, e.g. its 🏆 record replies. Left out of sentTexts.
+let setupCalls = 0;
+
+/** Messages sent since postWeek. */
 const sentTexts = () =>
   telegramCalls()
+    .slice(setupCalls)
     .filter(({ method }) => method === "sendMessage")
     .map(({ params }) => (params as { text: string }).text);
 
@@ -36,6 +41,7 @@ async function postWeek(saturday: string) {
   await send(message(MIKKO, `${saturday}T10:00:00Z`, "Zip #900 | 0:20 🏁\nlnkd.in/zip.\n\nQueens #800\n2:00 👑\nlnkd.in/queens.\n\nTango #700 | 1:30\nlnkd.in/tango."));
   await send(message(LIISA, `${saturday}T10:05:00Z`, "Zip #900 | 1:40 🏁\nlnkd.in/zip.\n\nTango #700 | 0:30\nlnkd.in/tango."));
   await send(message(AINO, `${saturday}T10:10:00Z`, "Zip #900 | 0:30 🏁\nlnkd.in/zip.\n\nQueens #800\n2:30 👑\nlnkd.in/queens."));
+  setupCalls = telegramCalls().length;
 }
 
 describe("isAprilFools", () => {
