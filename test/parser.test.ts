@@ -93,6 +93,12 @@ describe("robustness", () => {
     ]);
   });
 
+  it("recognises a localized game name", () => {
+    expect(parseScores("Minisudoku #424 | 2:16 ✏️\nlnkd.in/minisudoku.")).toEqual([
+      score({ game: "mini-sudoku", puzzleNumber: 424, timeSeconds: 136 }),
+    ]);
+  });
+
   it("reads hour-long times", () => {
     expect(parseScores("Queens #892\n1:02:03 👑")).toEqual([
       score({ game: "queens", puzzleNumber: 892, timeSeconds: 3723 }),
