@@ -1,7 +1,7 @@
 import { isValidSecret } from "./auth";
 import { createBotApi } from "./bot-api";
 import { handleUpdate } from "./handler";
-import { MY_SCORES_PATH, PAGE_PATH, serveMyScores, servePage } from "./mini-app";
+import { PAGE_PATH, servePage, serveWeek, WEEK_PATH } from "./mini-app";
 import type { Update } from "./telegram";
 
 // Only the default export may live here: workerd treats every export of the
@@ -12,11 +12,11 @@ const SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
 export default {
   async fetch(request, env, ctx): Promise<Response> {
     const { pathname } = new URL(request.url);
-    if (pathname === PAGE_PATH || pathname === MY_SCORES_PATH) {
+    if (pathname === PAGE_PATH || pathname === WEEK_PATH) {
       if (request.method !== "GET") {
         return new Response(null, { status: 405, headers: { Allow: "GET" } });
       }
-      return pathname === PAGE_PATH ? servePage() : serveMyScores(request, env);
+      return pathname === PAGE_PATH ? servePage() : serveWeek(request, env);
     }
     if (pathname !== WEBHOOK_PATH) {
       return new Response(null, { status: 404 });

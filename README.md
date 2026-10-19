@@ -4,7 +4,7 @@ Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our 
 
 It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Only the first result per person per puzzle counts; a repost gets a 🤨. Messages from every other chat are ignored.
 
-The Worker also serves a Telegram Mini App at `/app`. For now it's a demo that only lists the viewer's own scores ([src/mini-app.ts](src/mini-app.ts)). The page itself is public. Its data comes from `/api/my-scores`, which only answers when the request carries initData signed by Telegram, and only for people who have posted a score in our group.
+The Worker also serves a Telegram Mini App at `/app` with this week's standings, all games together and each game alone, the same as `/week` ([src/mini-app.ts](src/mini-app.ts), [src/mini-app.html](src/mini-app.html)). The page itself is public. Its data comes from `/api/week`, which only answers when the request carries initData signed by Telegram, and only for people who have posted a score in our group.
 
 ## Commands
 
@@ -54,7 +54,7 @@ Logs are in the Cloudflare dashboard (Workers & Pages → tangokuningatar → Lo
 
 ## Mini App setup
 
-One-time, in [@BotFather](https://t.me/BotFather): open the bot's **Bot Settings → Configure Mini App**, enable it and set the URL to the Worker's `workers.dev` URL plus `/app`. That adds **Open App** to the bot's profile, and `https://t.me/tangokuningatar_bot?startapp` opens it from any chat. Pin that link in the group.
+One-time, in [@BotFather](https://t.me/BotFather): open the bot's **Bot Settings → Configure Mini App**, enable it and set the URL to the Worker's `workers.dev` URL plus `/app`. That adds **Open App** to the bot's profile, and `https://t.me/tangokuningatar_bot?startapp` opens it from any chat. Pin that link in the group. `?startapp=zip` (or `mini_sudoku`, …) opens one game's standings.
 
 The page only works inside Telegram, so try changes by deploying. Opened in a normal browser, it just says so.
 
