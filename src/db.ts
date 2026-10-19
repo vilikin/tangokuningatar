@@ -148,6 +148,30 @@ export async function slowestRelativeScore(db: D1Database, since: number): Promi
     .first<TurtleScore>();
 }
 
+/**
+ * Records that this message, which the sender's scores were credited to, has
+ * been edited. Returns false if no scores came from it, or if it was already
+ * recorded.
+ */
+export async function recordSnitchedEdit(
+  db: D1Database,
+  senderId: number,
+  chatId: number,
+  messageId: number,
+  editedAt: number,
+): Promise<boolean> {
+  const result = await db
+    .prepare(
+      `INSERT INTO snitched_edits (chat_id, message_id, snitched_at)
+       SELECT ?2, ?3, ?4
+       WHERE EXISTS (SELECT 1 FROM scores WHERE telegram_user_id = ?1 AND chat_id = ?2 AND message_id = ?3)
+       ON CONFLICT (chat_id, message_id) DO NOTHING`,
+    )
+    .bind(senderId, chatId, messageId, editedAt)
+    .run();
+  return result.meta.changes > 0;
+}
+
 /** Whether this person has ever posted a score in our group. */
 export async function isPlayer(db: D1Database, telegramUserId: number): Promise<boolean> {
   const row = await db.prepare("SELECT 1 FROM players WHERE telegram_user_id = ?").bind(telegramUserId).first();

@@ -4,6 +4,8 @@
 export interface Update {
   update_id: number;
   message?: Message;
+  /** The new version of a message that was edited. */
+  edited_message?: Message;
   my_chat_member?: ChatMemberUpdated;
 }
 
@@ -27,6 +29,8 @@ export interface Chat {
 export interface Message {
   message_id: number;
   date: number;
+  /** Present on edited messages. */
+  edit_date?: number;
   chat: Chat;
   from?: User;
   sender_chat?: Chat;
