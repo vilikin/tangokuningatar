@@ -2,7 +2,13 @@
 
 Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
 
-It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Messages from every other chat are ignored. Leaderboards and stats come later.
+It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍. Messages from every other chat are ignored.
+
+## Commands
+
+- `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time. "Today" starts when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland). Yesterday's puzzles posted late don't count.
+
+Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
 
 ## Development
 
@@ -28,7 +34,7 @@ Locally the Worker runs without a bot token, so it only logs the reactions and r
 
 ## Deployment
 
-Merging to `main` deploys. CI runs the checks, applies D1 migrations, uploads the Worker with its secrets via `wrangler deploy`, then registers the webhook with `setWebhook`. Pending updates are never dropped.
+Merging to `main` deploys. CI runs the checks, applies D1 migrations, uploads the Worker with its secrets via `wrangler deploy`, then registers the webhook with `setWebhook` and the command menu with `setMyCommands`. Pending updates are never dropped.
 
 Secrets live in GitHub's `production` environment, limited to `main`:
 - `CLOUDFLARE_API_TOKEN`

@@ -81,3 +81,8 @@ jobs:
           WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
           WORKER_URL: ${{ steps.worker.outputs.url }}
         run: node scripts/telegram.ts set-webhook "$WORKER_URL"
+
+      - name: Register bot commands
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: node scripts/telegram.ts set-commands

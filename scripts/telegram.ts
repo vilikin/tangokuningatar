@@ -1,6 +1,7 @@
 // Manage the bot's Telegram webhook.
 //
 //   node scripts/telegram.ts set-webhook <worker-url>   (run by the deploy job in CI)
+//   node scripts/telegram.ts set-commands                (run by the deploy job in CI)
 //   node scripts/telegram.ts webhook-info
 //   node scripts/telegram.ts delete-webhook
 //
@@ -9,6 +10,8 @@
 
 const WEBHOOK_PATH = "/telegram/webhook";
 const ALLOWED_UPDATES = ["message", "my_chat_member"];
+// The menu Telegram shows when typing "/". Keep in sync with runCommand in src/commands.ts.
+const COMMANDS = [{ command: "today", description: "Today's leaderboard" }];
 
 interface TelegramResponse {
   ok: boolean;
@@ -77,6 +80,11 @@ async function setWebhook(workerUrl: string | undefined): Promise<void> {
   await printWebhookInfo();
 }
 
+async function setCommands(): Promise<void> {
+  await callTelegram("setMyCommands", { commands: COMMANDS });
+  console.log(`Bot commands set: ${COMMANDS.map(({ command }) => `/${command}`).join(", ")}`);
+}
+
 async function deleteWebhook(): Promise<void> {
   await callTelegram("deleteWebhook", { drop_pending_updates: false });
   console.log("Webhook deleted. Pending updates were kept (Telegram holds them for up to 24 hours).");
@@ -85,6 +93,7 @@ async function deleteWebhook(): Promise<void> {
 const [command, ...args] = process.argv.slice(2);
 const commands: Record<string, () => Promise<void>> = {
   "set-webhook": () => setWebhook(args[0]),
+  "set-commands": setCommands,
   "webhook-info": printWebhookInfo,
   "delete-webhook": deleteWebhook,
 };
