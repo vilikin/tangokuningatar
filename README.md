@@ -13,10 +13,13 @@ The Worker also serves a Telegram Mini App at `/app` with this week's standings,
 - `/week_queens`, `/week_tango`, `/week_zip`, `/week_mini_sudoku`, `/week_patches`, `/week_wend`: the week for one game. Typing `/week-zip` works too, but Telegram doesn't allow hyphens in the command menu.
 - `/kuningatar`: who leads `/week` so far, the Tangokuningatar in waiting.
 - `/turtle`: the turtle so far: the slowest result of the week compared with the fastest time on the same puzzle, like "Tango #600 in 1:30, 3.0× the fastest 0:30". Only puzzles that more than one person played count.
+- `/missing`: who would be shamed if the puzzles changed now: everyone still missing some of today's results, without pinging anyone. See [Daily shame](#daily-shame).
 - `/mood`: the bot's mood about today. Each of today's results is compared with that player's own average on the same game over the last 4 weeks, once they have at least 3 results there. The average of those decides the mood, from 🤩 to 😭, and the best and worst results are named ([src/mood.ts](src/mood.ts)).
 - `/ennustus`: your puzzle horoscope for today: a lucky game, one to beware of, a lucky time, a rival from the group (someone who posted in the last 4 weeks) and some advice. We play side by side, so the advice is about the race, not the time of day. It's the same all puzzle day, so asking again doesn't reroll it ([src/ennustus.ts](src/ennustus.ts)).
 
 The top three get medals, everyone else a 🐢. Days start when LinkedIn releases new puzzles, at midnight Pacific time (10:00 in Finland), so a week runs from Saturday's puzzles to Friday's. Older puzzles posted late don't count.
+
+Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
 
 ## Weekly crowning
 
@@ -24,9 +27,11 @@ Every Friday at 16:00 Finnish time, the bot posts the Tangokuningatar of the wee
 
 Cloudflare cron triggers run on UTC, so [wrangler.jsonc](wrangler.jsonc) schedules both 13:00 and 14:00 UTC on Fridays, and only the run that's 16:00 in Finland posts. To try it locally, run `npx wrangler dev --test-scheduled` and open `http://localhost:8787/__scheduled?cron=0+13+*+*+fri`. It only posts when it's actually Friday 16:00 in Finland, and even then only logs the message, since there's no bot token locally.
 
-Commands live in [src/commands.ts](src/commands.ts). The menu Telegram shows when typing `/` is set on deploy from the list in [scripts/telegram.ts](scripts/telegram.ts).
+## Daily shame
 
-Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now: everyone still missing some of today's results.
+Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now.
+
+Like the crowning, the cron runs on UTC: [wrangler.jsonc](wrangler.jsonc) schedules 07:00 and 08:00 UTC every day, and only the run that's 10:00 in Finland shames.
 
 ## Development
 
@@ -42,7 +47,7 @@ cp .dev.vars.example .dev.vars
 
 Then run `npm test`, `npm run typecheck` and `npm run smoke`. The smoke test starts `wrangler dev` and sends it real requests.
 
-To trigger the daily shame locally, start the Worker with `npm run dev -- --test-scheduled` and open `http://localhost:8787/__scheduled`. It always runs with the current time, so it only shames between 10:00 and 11:00 Finnish time. At any other time it logs `daily_shame_skipped`. The tests cover the timing.
+To trigger the daily shame locally, start the Worker with `npm run dev -- --test-scheduled` and open `http://localhost:8787/__scheduled?cron=0+7,8+*+*+*`. Without the `cron`, the weekly crowning runs instead. It always runs with the current time, so it only shames between 10:00 and 11:00 Finnish time. At any other time it logs `daily_shame_skipped`. The tests cover the timing.
 
 To try a fixture by hand, start the Worker with `npm run dev`, then:
 
