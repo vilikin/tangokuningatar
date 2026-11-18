@@ -1,6 +1,6 @@
 # Tangokuningatar
 
-Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches and Wend. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
+Telegram bot ([@tangokuningatar_bot](https://t.me/tangokuningatar_bot)) for our group's daily LinkedIn puzzle scores: Queens, Tango, Zip, Mini Sudoku, Patches, Wend and Sumbreak. Pinpoint and Crossclimb are not supported. Posting one earns a 👎 and some shaming.
 
 It's a Cloudflare Worker that receives Telegram updates via webhook. Scores posted in our group are parsed ([src/parser.ts](src/parser.ts)), saved to D1 ([migrations/](migrations)), and get a 👍, or a 🔥 for beating your own best on that game. Beating the group's all-time record for a game also gets a reply ([src/records.ts](src/records.ts)). Your first result on a game is never a personal best, and ties don't count. Only the first result per person per puzzle counts; a repost gets a 🤨. Editing a message with a score doesn't change the score, but it gets a 🤡 and a "We saw that." Messages from every other chat are ignored.
 
@@ -10,7 +10,7 @@ The Worker also serves a Telegram Mini App at `/app` with this week's standings,
 
 - `/today`: today's leaderboard. Each player's times on today's puzzles are added up. More games played ranks higher, then the lower total time.
 - `/week`: the same for the whole week, all games together. A week runs Saturday to Friday.
-- `/week_queens`, `/week_tango`, `/week_zip`, `/week_mini_sudoku`, `/week_patches`, `/week_wend`: the week for one game. Typing `/week-zip` works too, but Telegram doesn't allow hyphens in the command menu.
+- `/week_queens`, `/week_tango`, `/week_zip`, `/week_mini_sudoku`, `/week_patches`, `/week_wend`, `/week_sumbreak`: the week for one game. Typing `/week-zip` works too, but Telegram doesn't allow hyphens in the command menu.
 - `/kuningatar`: who leads `/week` so far, the Tangokuningatar in waiting.
 - `/turtle`: the turtle so far: the slowest result of the week compared with the fastest time on the same puzzle, like "Tango #600 in 1:30, 3.0× the fastest 0:30". Only puzzles that more than one person played count.
 - `/missing`: who would be shamed if the puzzles changed now: everyone still missing some of today's results, without pinging anyone. See [Daily shame](#daily-shame).
@@ -29,7 +29,7 @@ Cloudflare cron triggers run on UTC, so [wrangler.jsonc](wrangler.jsonc) schedul
 
 ## Daily shame
 
-Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). A streak of missed days gets shamed only once, on its first day: someone who also missed the day before stays unshamed until they've posted all six games for a day, and the next miss after that gets shamed again. Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now.
+Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post every game for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). A streak of missed days gets shamed only once, on its first day: someone who also missed the day before stays unshamed until they've posted every game for a day, and the next miss after that gets shamed again. Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now.
 
 Like the crowning, the cron runs on UTC: [wrangler.jsonc](wrangler.jsonc) schedules 07:00 and 08:00 UTC every day, and only the run that's 10:00 in Finland shames.
 

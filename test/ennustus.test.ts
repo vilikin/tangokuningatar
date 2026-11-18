@@ -19,7 +19,7 @@ const GROUP = [player(1, "Aino"), player(2, "Liisa"), player(3, "Mikko")];
 describe("ennustus", () => {
   it("reads as a horoscope for the sender and the puzzle day", () => {
     expect(ennustus(MONDAY, 1, "Aino", GROUP)).toMatch(
-      /^🔮 Aino's ennustus for Mon 19\.10\.\n\nLucky game: (Queens|Tango|Zip|Mini Sudoku|Patches|Wend) ★{2,5}☆{0,3}\nBeware of: (Queens|Tango|Zip|Mini Sudoku|Patches|Wend)\nLucky time: [01]:\d\d\nRival today: (Liisa|Mikko)\n\n.+$/,
+      /^🔮 Aino's ennustus for Mon 19\.10\.\n\nLucky game: (Queens|Tango|Zip|Mini Sudoku|Patches|Wend|Sumbreak) ★{2,5}☆{0,3}\nBeware of: (Queens|Tango|Zip|Mini Sudoku|Patches|Wend|Sumbreak)\nLucky time: [01]:\d\d\nRival today: (Liisa|Mikko)\n\n.+$/,
     );
   });
 

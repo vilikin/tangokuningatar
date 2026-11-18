@@ -21,6 +21,11 @@ describe("real share texts", () => {
       score({ game: "wend", puzzleNumber: 123, timeSeconds: 82, noHints: true }),
     ],
     [
+      "Sumbreak",
+      "Sumbreak #1 | 0:06 🔢\nWith no hints & no backtracks\n🥇 Day One Original! Solved LinkedIn's new math game on launch day. Your turn.\nlnkd.in/sumbreak.",
+      score({ game: "sumbreak", puzzleNumber: 1, timeSeconds: 6, noHints: true }),
+    ],
+    [
       "Patches",
       "Patches #206 | 0:14 🧶\nWith no hints\nlnkd.in/patches.",
       score({ game: "patches", puzzleNumber: 206, timeSeconds: 14, noHints: true }),

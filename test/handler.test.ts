@@ -279,7 +279,7 @@ describe("shaming Pinpoint and Crossclimb", () => {
   it.each([
     [901044, "🔔 Shame! 🔔 Aino posted a Crossclimb result. We don't do that here."],
     [901045, "Crossclimb? In this group? 👎 Aino, think about what you've done."],
-    [901046, "🚨 Crossclimb detected. Aino, this is a Queens, Tango, Zip, Mini Sudoku, Patches and Wend household."],
+    [901046, "🚨 Crossclimb detected. Aino, this is a Queens, Tango, Zip, Mini Sudoku, Patches, Wend and Sumbreak household."],
   ])("varies the shame by message (%i)", async (messageId, expected) => {
     await send(scoreMessage({ message_id: messageId, text: "Crossclimb #377 | 1:23 🪜\nlnkd.in/crossclimb." }));
 

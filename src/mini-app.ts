@@ -19,7 +19,7 @@ export const WEEK_PATH = "/api/week";
 const DAY_SECONDS = 86_400;
 
 // The order LinkedIn lists its games in.
-const GAME_ORDER: GameId[] = ["zip", "patches", "mini-sudoku", "tango", "queens", "wend"];
+const GAME_ORDER: GameId[] = ["zip", "patches", "mini-sudoku", "tango", "queens", "wend", "sumbreak"];
 
 // Keeps the page out of search engines, and its URL out of other sites' logs.
 const PAGE_HEADERS = {

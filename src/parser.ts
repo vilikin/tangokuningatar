@@ -17,6 +17,7 @@ export const GAMES = {
   "mini-sudoku": "Mini Sudoku",
   patches: "Patches",
   wend: "Wend",
+  sumbreak: "Sumbreak",
 } as const;
 // Names the share text uses when LinkedIn is set to another language. Add new ones as they turn up.
 const LOCALIZED_NAMES: Partial<Record<GameId, string[]>> = {
