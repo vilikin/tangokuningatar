@@ -13,7 +13,7 @@ const ON_THE_DAY = Date.parse("2026-10-19T19:00:00Z") / 1000;
 const DAY = 86_400;
 
 // The 19 October puzzle numbers.
-const PUZZLES = { queens: 900, tango: 700, zip: 500, "mini-sudoku": 300, patches: 210, wend: 40 };
+const PUZZLES = { queens: 900, tango: 700, zip: 500, "mini-sudoku": 300, patches: 210, wend: 40, sumbreak: 1 };
 
 const AINO = 1001; // posts everything
 const BERTTA = 1002; // posts Queens and Zip
@@ -95,7 +95,7 @@ describe("daily shame", () => {
       },
     ]);
     expect((shamePosts()[0]!.params as { caption: string }).caption).toBe(
-      `<a href="tg://user?id=${BERTTA}">Bertta</a> did not play Tango, Mini Sudoku, Patches and Wend! What a shame!`,
+      `<a href="tg://user?id=${BERTTA}">Bertta</a> did not play Tango, Mini Sudoku, Patches, Wend and Sumbreak! What a shame!`,
     );
     expect(logged("log")).toContainEqual(
       expect.objectContaining({ event: "player_skipped", user_id: DORA, reason: "not in the group" }),
@@ -122,13 +122,13 @@ describe("daily shame", () => {
       {
         telegram_user_id: BERTTA,
         puzzle_day: "2026-10-19",
-        missed_games: "tango,mini-sudoku,patches,wend",
+        missed_games: "tango,mini-sudoku,patches,wend,sumbreak",
         shamed_at: AFTER_RESET.getTime() / 1000,
       },
       {
         telegram_user_id: CECILIA,
         puzzle_day: "2026-10-19",
-        missed_games: "queens,tango,zip,mini-sudoku,patches,wend",
+        missed_games: "queens,tango,zip,mini-sudoku,patches,wend,sumbreak",
         shamed_at: AFTER_RESET.getTime() / 1000,
       },
     ]);
@@ -201,7 +201,7 @@ describe("daily shame", () => {
     expect(logged("log")).toContainEqual(expect.objectContaining({ event: "daily_shame_done", shamed: [] }));
   });
 
-  it("shames someone who played 5 of the 6 games, even when nobody posted the sixth", async () => {
+  it("shames someone who played all but one game, even when nobody posted the last one", async () => {
     await addPlayer(AINO, "Aino");
     for (const [game, number] of Object.entries(PUZZLES)) {
       if (game !== "wend") {

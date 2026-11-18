@@ -99,6 +99,7 @@ describe("week API", () => {
       ["tango", "Tango"],
       ["queens", "Queens"],
       ["wend", "Wend"],
+      ["sumbreak", "Sumbreak"],
     ]);
     const board = (id: string) => body.boards.find((b) => b.id === id)!.standings;
     expect(board("all")).toEqual([

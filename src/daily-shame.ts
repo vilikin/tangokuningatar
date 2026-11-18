@@ -20,10 +20,10 @@ const SECONDS_PER_DAY = 86_400;
 
 /**
  * Shames everyone who is in the group, has posted a score at some point, and
- * didn't post all six games for the puzzle day that just ended. One message
+ * didn't post every game for the puzzle day that just ended. One message
  * (GIF + caption mentioning them) per person, and only on the first day they
  * miss: someone who also missed the day before isn't shamed again until they've
- * posted all six games for a day.
+ * posted every game for a day.
  */
 export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<void> {
   const chatId = Number(env.ALLOWED_CHAT_ID?.trim());
@@ -75,7 +75,7 @@ export interface MissedResults {
 
 /**
  * Everyone who has posted a score at some point, is in the group, and hasn't
- * posted all six games for `puzzleDay` ('YYYY-MM-DD'), with the games they're
+ * posted every game for `puzzleDay` ('YYYY-MM-DD'), with the games they're
  * missing. Used by the daily shame and by /missing.
  */
 export async function findMissedResults(

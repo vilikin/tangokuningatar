@@ -240,7 +240,7 @@ describe("/today", () => {
 });
 
 describe("/missing", () => {
-  const TODAY = { Queens: 893, Tango: 693, Zip: 572, "Mini Sudoku": 300, Patches: 210, Wend: 40 };
+  const TODAY = { Queens: 893, Tango: 693, Zip: 572, "Mini Sudoku": 300, Patches: 210, Wend: 40, Sumbreak: 1 };
 
   /** Posts these games of today's puzzles (released at 07:00 UTC on 9 October). */
   async function postToday(from: object, games: (keyof typeof TODAY)[]) {
@@ -262,7 +262,7 @@ describe("/missing", () => {
 
   it("lists who is still missing today's results, and which ones", async () => {
     mockMembers();
-    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend"]);
+    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend", "Sumbreak"]);
     await postToday(MIKKO, ["Queens", "Zip"]);
     // Only yesterday's puzzle: nothing today.
     await send(message(LIISA, "2026-10-09T05:00:00Z", "Queens #892\n2:00 👑\nlnkd.in/queens."));
@@ -273,7 +273,7 @@ describe("/missing", () => {
       chat_id: OUR_GROUP,
       text:
         "🕵️ Still missing today's results:\n\n" +
-        "• Mikko: Tango, Mini Sudoku, Patches and Wend\n" +
+        "• Mikko: Tango, Mini Sudoku, Patches, Wend and Sumbreak\n" +
         "• Liisa: nothing yet\n\n" +
         "Anything still missing at 10:00 gets shamed. 🔔",
     });
@@ -281,7 +281,7 @@ describe("/missing", () => {
 
   it("leaves out people who have left the group", async () => {
     mockMembers([LIISA.id]);
-    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend"]);
+    await postToday(AINO, ["Queens", "Tango", "Zip", "Mini Sudoku", "Patches", "Wend", "Sumbreak"]);
     await send(message(LIISA, "2026-10-09T05:00:00Z", "Queens #892\n2:00 👑\nlnkd.in/queens."));
 
     await send(message(AINO, "2026-10-09T15:00:00Z", "/missing"));
