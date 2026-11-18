@@ -105,6 +105,7 @@ describe("daily shame", () => {
       puzzle_day: "2026-10-19",
       puzzle_numbers: PUZZLES,
       shamed: [BERTTA, CECILIA],
+      still_missing: [],
     });
   });
 
@@ -131,6 +132,58 @@ describe("daily shame", () => {
         shamed_at: AFTER_RESET.getTime() / 1000,
       },
     ]);
+  });
+
+  // 10:00 in Finland on 21 October: the 20 October puzzles just closed.
+  const DAY_AFTER = new Date(AFTER_RESET.getTime() + DAY * 1000);
+
+  it("shames a streak of missed days only on its first day", async () => {
+    await seedGroup();
+    mockMembers({ [DORA]: "left" });
+    // Bertta posts everything on 20 October, Cecilia still nothing.
+    for (const [game, number] of Object.entries(PUZZLES)) {
+      await addScore(AINO, game, number + 1, ON_THE_DAY + DAY);
+      await addScore(BERTTA, game, number + 1, ON_THE_DAY + DAY);
+    }
+
+    await runDailyShame(AFTER_RESET, withGif, bot);
+    await runDailyShame(DAY_AFTER, withGif, bot);
+
+    expect(shamePosts().map(({ params }) => (params as { caption: string }).caption)).toEqual([
+      expect.stringContaining("Bertta"),
+      expect.stringContaining("Cecilia"),
+    ]);
+    expect(logged("log")).toContainEqual(
+      expect.objectContaining({ event: "shame_skipped", user_id: CECILIA, reason: "already shamed for this streak of missed days" }),
+    );
+    expect(logged("log")).toContainEqual(
+      expect.objectContaining({ event: "daily_shame_done", puzzle_day: "2026-10-20", shamed: [], still_missing: [CECILIA] }),
+    );
+    // The missed day is still recorded, so the streak carries on to the next day.
+    const { results } = await env.DB.prepare("SELECT telegram_user_id FROM shames WHERE puzzle_day = '2026-10-20'").all();
+    expect(results).toEqual([{ telegram_user_id: CECILIA }]);
+  });
+
+  it("shames again after a day with every game posted", async () => {
+    await addPlayer(CECILIA, "Cecilia");
+    mockMembers();
+    // Missed 18 October, posted everything on 19 October, missed 20 October.
+    await env.DB.prepare(
+      "INSERT INTO shames (telegram_user_id, puzzle_day, missed_games, shamed_at) VALUES (?, '2026-10-18', 'queens', 0)",
+    )
+      .bind(CECILIA)
+      .run();
+    for (const [game, number] of Object.entries(PUZZLES)) {
+      await addScore(CECILIA, game, number, ON_THE_DAY);
+    }
+
+    await runDailyShame(AFTER_RESET, withGif, bot);
+    await runDailyShame(DAY_AFTER, withGif, bot);
+
+    expect(shamePosts()).toHaveLength(1);
+    expect(logged("log")).toContainEqual(
+      expect.objectContaining({ event: "daily_shame_done", puzzle_day: "2026-10-20", shamed: [CECILIA] }),
+    );
   });
 
   it("posts nothing at all when everyone posted every game", async () => {

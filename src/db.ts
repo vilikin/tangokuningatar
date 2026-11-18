@@ -340,6 +340,18 @@ export async function listPosters(
   return results;
 }
 
+/**
+ * Everyone with a row in `shames` for this puzzle day: everyone who missed a
+ * game that day, whether or not the shame was actually posted.
+ */
+export async function listShamedUserIds(db: D1Database, puzzleDay: string): Promise<Set<number>> {
+  const { results } = await db
+    .prepare("SELECT telegram_user_id FROM shames WHERE puzzle_day = ?")
+    .bind(puzzleDay)
+    .all<{ telegram_user_id: number }>();
+  return new Set(results.map(({ telegram_user_id }) => telegram_user_id));
+}
+
 /** Returns false if the player was already shamed for this puzzle day. */
 export async function recordShame(
   db: D1Database,

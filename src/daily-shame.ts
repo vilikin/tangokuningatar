@@ -1,5 +1,5 @@
 import type { BotApi } from "./bot-api";
-import { listPlayers, listPosters, listPuzzleFirstPosts, type Player, recordShame } from "./db";
+import { listPlayers, listPosters, listPuzzleFirstPosts, listShamedUserIds, type Player, recordShame } from "./db";
 import { joinNames } from "./format";
 import { GAMES, type GameId } from "./parser";
 import { puzzleDate, puzzleDayStart } from "./puzzle-day";
@@ -21,7 +21,9 @@ const SECONDS_PER_DAY = 86_400;
 /**
  * Shames everyone who is in the group, has posted a score at some point, and
  * didn't post all six games for the puzzle day that just ended. One message
- * (GIF + caption mentioning them) per person.
+ * (GIF + caption mentioning them) per person, and only on the first day they
+ * miss: someone who also missed the day before isn't shamed again until they've
+ * posted all six games for a day.
  */
 export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<void> {
   const chatId = Number(env.ALLOWED_CHAT_ID?.trim());
@@ -40,14 +42,28 @@ export async function runDailyShame(now: Date, env: Env, bot: BotApi): Promise<v
   const puzzleDay = toIsoDate(puzzleDate(puzzleDayStart(nowSeconds) - 1));
 
   const { puzzleNumbers, players } = await findMissedResults(env.DB, bot, chatId, puzzleDay, nowSeconds);
+  // Who already missed the day before. They got their shame then, so a streak of
+  // missed days gets one shame, on its first day.
+  const missedTheDayBefore = await listShamedUserIds(env.DB, previousIsoDate(puzzleDay));
   const shamed: number[] = [];
+  const stillMissing: number[] = [];
   for (const { player, missed } of players) {
-    if (await shamePlayer(env, bot, chatId, player, puzzleDay, missed, nowSeconds)) {
-      shamed.push(player.telegram_user_id);
+    const userId = player.telegram_user_id;
+    const result = await shamePlayer(env, bot, chatId, player, puzzleDay, missed, nowSeconds, missedTheDayBefore.has(userId));
+    if (result === "shamed") {
+      shamed.push(userId);
+    } else if (result === "still_missing") {
+      stillMissing.push(userId);
     }
   }
 
-  console.log({ event: "daily_shame_done", puzzle_day: puzzleDay, puzzle_numbers: puzzleNumbers, shamed });
+  console.log({
+    event: "daily_shame_done",
+    puzzle_day: puzzleDay,
+    puzzle_numbers: puzzleNumbers,
+    shamed,
+    still_missing: stillMissing,
+  });
 }
 
 export interface MissedResults {
@@ -101,6 +117,11 @@ async function isInGroup(bot: BotApi, chatId: number, userId: number): Promise<b
   return false;
 }
 
+/**
+ * Records the missed day, then posts the shame unless the player also missed the
+ * day before. The miss is recorded either way, so the next day knows the streak
+ * is still going.
+ */
 async function shamePlayer(
   env: Env,
   bot: BotApi,
@@ -109,21 +130,31 @@ async function shamePlayer(
   puzzleDay: string,
   missed: GameId[],
   nowSeconds: number,
-): Promise<boolean> {
+  missedTheDayBefore: boolean,
+): Promise<"shamed" | "still_missing" | "skipped"> {
   const userId = player.telegram_user_id;
   if (!(await recordShame(env.DB, userId, puzzleDay, missed, nowSeconds))) {
     console.log({ event: "shame_skipped", user_id: userId, reason: "already shamed for this day" });
-    return false;
+    return "skipped";
+  }
+  if (missedTheDayBefore) {
+    console.log({ event: "shame_skipped", user_id: userId, reason: "already shamed for this streak of missed days" });
+    return "still_missing";
   }
 
   try {
     await bot.sendShame(chatId, env.SHAME_GIF?.trim() || undefined, formatMissedShame(player, missed));
-    return true;
+    return "shamed";
   } catch (error) {
     // Not retried: the shame is already recorded, and a second run must not double up.
     console.error({ event: "telegram_error", user_id: userId, error: String(error) });
-    return false;
+    return "skipped";
   }
+}
+
+/** The day before `isoDate` ('YYYY-MM-DD'). */
+function previousIsoDate(isoDate: string): string {
+  return toIsoDate(new Date(Date.parse(`${isoDate}T00:00:00Z`) - SECONDS_PER_DAY * 1000));
 }
 
 const MISSED_GAMES_LINE = (mention: string, games: string) => `${mention} did not play ${games}! What a shame!`;
