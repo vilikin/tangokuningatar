@@ -29,7 +29,7 @@ Cloudflare cron triggers run on UTC, so [wrangler.jsonc](wrangler.jsonc) schedul
 
 ## Daily shame
 
-Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now.
+Every day at 10:00 Finnish time, when the puzzles have reset (midnight Pacific time), the bot shames everyone who has posted a score at some point, is still in the group, and didn't post all six games for the day that just ended. Each of them gets their own message: a GIF with a caption that mentions them ([src/daily-shame.ts](src/daily-shame.ts)). A streak of missed days gets shamed only once, on its first day: someone who also missed the day before stays unshamed until they've posted all six games for a day, and the next miss after that gets shamed again. Set the GIF in `SHAME_GIF` in [wrangler.jsonc](wrangler.jsonc), as a Telegram `file_id` or an https URL. `/missing` shows who would be shamed if the puzzles changed now.
 
 Like the crowning, the cron runs on UTC: [wrangler.jsonc](wrangler.jsonc) schedules 07:00 and 08:00 UTC every day, and only the run that's 10:00 in Finland shames.
 
